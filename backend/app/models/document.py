@@ -4,7 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Enum, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -37,11 +37,23 @@ class Document(Base):
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     extracted_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     extracted_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    subtotal: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    tax: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
     merchant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     category: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
     confidence_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
+    ai_document_type: Mapped[DocumentType | None] = mapped_column(Enum(DocumentType, name="document_type"), nullable=True)
+    ai_confidence_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 3), nullable=True)
+    ai_extraction_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_required: Mapped[bool] = mapped_column(default=False, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extraction_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    refinement_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    provider_chain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    merge_strategy: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    field_sources: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     processing_status: Mapped[ProcessingStatus] = mapped_column(
         Enum(ProcessingStatus, name="processing_status"),
         default=ProcessingStatus.uploaded,

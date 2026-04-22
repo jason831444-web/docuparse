@@ -128,7 +128,7 @@ def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = De
     document = db.get(Document, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    for key, value in payload.model_dump().items():
+    for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(document, key, value)
     db.add(document)
     db.commit()

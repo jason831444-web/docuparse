@@ -11,3 +11,4 @@ pytesseract==0.3.13
 opencv-python-headless==4.10.0.84
 pandas==2.2.3
 rapidfuzz==3.11.0
+openai==1.59.7

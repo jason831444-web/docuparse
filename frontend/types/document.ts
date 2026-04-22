@@ -11,11 +11,23 @@ export interface DocumentRecord {
   raw_text: string | null;
   extracted_date: string | null;
   extracted_amount: string | null;
+  subtotal: string | null;
+  tax: string | null;
   currency: string | null;
   merchant_name: string | null;
   category: string | null;
   tags: string[];
+  summary: string | null;
   confidence_score: string | null;
+  ai_document_type: DocumentType | null;
+  ai_confidence_score: string | null;
+  ai_extraction_notes: string | null;
+  review_required: boolean;
+  extraction_provider: string | null;
+  refinement_provider: string | null;
+  provider_chain: string | null;
+  merge_strategy: string | null;
+  field_sources: Record<string, string> | null;
   processing_status: ProcessingStatus;
   preview_image_path: string | null;
   processing_error: string | null;
@@ -48,8 +60,11 @@ export type DocumentUpdate = Pick<
   | "raw_text"
   | "extracted_date"
   | "extracted_amount"
+  | "subtotal"
+  | "tax"
   | "currency"
   | "merchant_name"
   | "category"
   | "tags"
+  | "summary"
 > & { confidence_score?: string | null };

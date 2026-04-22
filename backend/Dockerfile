@@ -9,8 +9,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements.txt requirements-ai.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+ARG INSTALL_AI_DEPS=false
+RUN if [ "$INSTALL_AI_DEPS" = "true" ]; then pip install --no-cache-dir -r requirements-ai.txt; fi
 
 COPY . .
 

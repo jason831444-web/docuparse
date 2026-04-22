@@ -15,4 +15,5 @@ out/
 # Local uploads and database state
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/models/
 *.log
