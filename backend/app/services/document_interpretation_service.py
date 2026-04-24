@@ -115,9 +115,10 @@ class DocumentInterpretationService:
         )
 
         should_adopt_category = (
-            refined.confidence >= max(0.66, base.confidence - 0.08)
+            refined.confidence >= max(0.62, base.confidence - 0.08)
             and (
                 base.profile == "generic_document"
+                or self._is_generic_category(base.category)
                 or refined.profile == base.profile
                 or refined.profile
                 in {
@@ -140,10 +141,14 @@ class DocumentInterpretationService:
             result.profile = refined.profile or result.profile
             result.subtype = refined.subtype or result.subtype
             result.reasons.extend(note for note in refined.reasons if note not in result.reasons)
+        elif base.profile != "generic_document" and refined.profile == "generic_document":
+            result.category = base.category
+            result.profile = base.profile
+            result.subtype = base.subtype
 
         if self._weak_title(result.title_hint) and refined.title_hint:
             result.title_hint = refined.title_hint
-        elif refined.title_hint and len(refined.title_hint) > len(result.title_hint or "") and refined.profile == result.profile:
+        elif refined.title_hint and self._title_quality(refined.title_hint) > self._title_quality(result.title_hint):
             result.title_hint = refined.title_hint
 
         if refined.summary_hint and self._better_summary(refined.summary_hint, result.summary_hint):
@@ -183,7 +188,36 @@ class DocumentInterpretationService:
         if not title:
             return True
         lowered = title.strip().lower()
-        return lowered in {"page 1", "page", "slide 1", "slide", "untitled document", "syllabus", "receipt"}
+        return lowered in {"page 1", "page", "slide 1", "slide", "untitled document", "syllabus", "receipt"} or self._title_quality(title) <= 0
+
+    def _title_quality(self, title: str | None) -> int:
+        if not title:
+            return -100
+        cleaned = re.sub(r"\s+", " ", title).strip()
+        lowered = cleaned.lower()
+        if lowered in {"page 1", "page", "slide 1", "slide", "untitled document", "syllabus", "receipt"}:
+            return -60
+        score = 10
+        if re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", cleaned):
+            score += 25
+        if any(keyword in lowered for keyword in ["course", "guide", "presentation", "resume", "profile", "receipt", "invoice"]):
+            score += 12
+        if ":" in cleaned:
+            score -= 8
+        if re.match(r"^(course description|overview|summary|introduction|objectives?)\s*:", lowered):
+            score -= 22
+        if re.match(r"^(this|these|students|you will|in this course|the purpose of)\b", lowered):
+            score -= 28
+        if len(cleaned.split()) > 12:
+            score -= 18
+        if cleaned.endswith("."):
+            score -= 10
+        if self._looks_raw(cleaned):
+            score -= 15
+        return score
+
+    def _is_generic_category(self, category: str | None) -> bool:
+        return not category or category in {"other", "document", "generic_document", "notice"}
 
     def _better_summary(self, new: str, current: str | None) -> bool:
         if not current:
@@ -296,6 +330,7 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
             "Return only JSON with keys: category, profile, subtype, title_hint, summary_hint, "
             "key_fields, warnings, workflow_hints, confidence, reasons. "
             "Be category-aware and concise. "
+            "Use workflow_hints.important_points to list the most important grounded details or takeaways when possible. "
             "Profiles may include: receipt, repair_service_receipt, utility_bill, invoice, "
             "syllabus, course_guide, meeting_notice, presentation_guide, speaking_notes, "
             "resume_profile, profile_record, instructional_memo, generic_document. "
@@ -360,6 +395,10 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
             result["action_items"] = self._clean_text_list(value.get("action_items"))
         if "warnings" in value:
             result["warnings"] = self._clean_text_list(value.get("warnings"))
+        if "important_points" in value:
+            result["important_points"] = self._clean_text_list(value.get("important_points"))
+        if "review_focus" in value:
+            result["review_focus"] = self._clean_text_list(value.get("review_focus"))
         if "urgency_level" in value:
             urgency = self._clean_text(value.get("urgency_level"))
             if urgency in {"low", "medium", "high"}:
@@ -645,6 +684,7 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
             "Return only valid JSON with keys: category, profile, subtype, title_hint, summary_hint, "
             "key_fields, warnings, workflow_hints, confidence, reasons. "
             "Prefer concise, category-aware summaries and field emphasis. "
+            "Use workflow_hints.important_points for the most important grounded facts or takeaways. "
             "Good profile options: receipt, repair_service_receipt, utility_bill, invoice, syllabus, course_guide, "
             "meeting_notice, presentation_guide, speaking_notes, resume_profile, profile_record, instructional_memo, generic_document."
         )

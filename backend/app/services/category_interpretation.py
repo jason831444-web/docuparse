@@ -34,6 +34,7 @@ class CategoryInterpretationService:
     def interpret(self, document: Document, text: str) -> CategoryInterpretation:
         lowered = text.lower()
         title_hint = self._meaningful_title(document.title, text)
+        explicit_category = self._specific_existing_category(document.category)
 
         if document.document_type == DocumentType.receipt:
             if self._looks_like_repair_service_receipt(lowered):
@@ -145,7 +146,7 @@ class CategoryInterpretationService:
             )
 
         return CategoryInterpretation(
-            category=document.category or ("notice" if document.document_type == DocumentType.notice else "other"),
+            category=explicit_category or document.category or ("notice" if document.document_type == DocumentType.notice else "other"),
             profile="generic_document",
             subtype="generic_document",
             title_hint=title_hint,
@@ -154,16 +155,24 @@ class CategoryInterpretationService:
         )
 
     def _meaningful_title(self, current: str | None, text: str) -> str | None:
-        if current and not re.fullmatch(r"(page|slide)\s+\d+", current.strip(), flags=re.IGNORECASE):
+        if current and self._score_title_candidate(current.strip(), 0, text) > 0:
             return current
-        for line in text.splitlines()[:10]:
+        candidates: list[tuple[int, str]] = []
+        for index, line in enumerate(text.splitlines()[:12]):
             cleaned = re.sub(r"\s+", " ", line).strip(" :-")
-            if 4 <= len(cleaned) <= 120 and not re.fullmatch(r"(page|slide)\s+\d+", cleaned, flags=re.IGNORECASE):
-                return cleaned
-        return None
+            if not cleaned:
+                continue
+            score = self._score_title_candidate(cleaned, index, text)
+            if score > 0:
+                candidates.append((score, cleaned))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (-item[0], len(item[1])))
+        return candidates[0][1]
 
     def _course_title(self, text: str) -> str | None:
         lines = [re.sub(r"\s+", " ", line).strip(" :-") for line in text.splitlines()[:12]]
+        candidates: list[tuple[int, str]] = []
         for index, cleaned in enumerate(lines):
             lowered = cleaned.lower()
             if not cleaned or re.fullmatch(r"(page|slide)\s+\d+", cleaned, flags=re.IGNORECASE):
@@ -171,12 +180,61 @@ class CategoryInterpretationService:
             if lowered == "syllabus" and index > 0 and lines[index - 1]:
                 previous = lines[index - 1]
                 if not re.fullmatch(r"(page|slide)\s+\d+", previous, flags=re.IGNORECASE):
-                    return f"{previous} Syllabus"
+                    candidates.append((95, f"{previous} Syllabus"))
             if "syllabus" in lowered and len(cleaned) > len("syllabus"):
-                return cleaned
+                candidates.append((90, cleaned))
             if any(keyword in lowered for keyword in ["course guide", "course overview", "course fundamentals"]):
-                return cleaned
-        return None
+                candidates.append((85, cleaned))
+            score = self._score_title_candidate(cleaned, index, text)
+            if score > 0 and (self._course_code(cleaned) or "course" in lowered):
+                candidates.append((score + 10, cleaned))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (-item[0], len(item[1])))
+        return candidates[0][1]
+
+    def _course_code(self, text: str) -> str | None:
+        match = re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", text)
+        return match.group(0) if match else None
+
+    def _score_title_candidate(self, value: str, index: int, text: str) -> int:
+        lowered = value.lower()
+        if re.fullmatch(r"(page|slide)\s+\d+", value.strip(), flags=re.IGNORECASE):
+            return -100
+        if len(value) < 4 or len(value) > 120:
+            return -40
+        score = 30 - (index * 2)
+        if re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", value):
+            score += 30
+        if any(keyword in lowered for keyword in ["syllabus", "course", "guide", "presentation", "resume", "profile"]):
+            score += 18
+        if re.match(r"^[A-Z][A-Za-z0-9&,'./() -]{4,}$", value):
+            score += 8
+        if ":" in value:
+            score -= 8
+        if re.match(r"^(course description|overview|summary|introduction|objectives?)\s*:", lowered):
+            score -= 28
+        if re.match(r"^(this|these|students|you will|in this course|the purpose of)\b", lowered):
+            score -= 35
+        if len(value.split()) > 12:
+            score -= 18
+        if value.endswith("."):
+            score -= 12
+        if self._looks_like_sentence(value):
+            score -= 22
+        return score
+
+    def _looks_like_sentence(self, value: str) -> bool:
+        lowered = value.lower().strip()
+        return len(lowered.split()) >= 8 and bool(re.search(r"\b(is|are|will|introduces|provides|covers|describes|contains)\b", lowered))
+
+    def _specific_existing_category(self, category: str | None) -> str | None:
+        if not category:
+            return None
+        lowered = category.lower().strip()
+        if lowered in {"other", "document", "generic_document", "notice"}:
+            return None
+        return category
 
     def _receipt_title(self, document: Document) -> str:
         return f"{document.merchant_name} receipt" if document.merchant_name else "Receipt"

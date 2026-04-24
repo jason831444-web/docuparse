@@ -20,8 +20,23 @@ export function formatDateTime(value?: string | null) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+const LABEL_ALIASES: Record<string, string> = {
+  syllabus: "Syllabus",
+  course_guide: "Course Guide",
+  presentation_guide: "Presentation Guide",
+  speaking_notes: "Speaking Notes",
+  resume_profile: "Resume Profile",
+  profile_record: "Profile Record",
+  repair_service_receipt: "Repair Service Receipt",
+  utility_bill: "Utility Bill",
+  meeting_notice: "Meeting Notice",
+  instructional_memo: "Instructional Memo",
+};
+
 export function titleCaseLabel(value?: string | null) {
   if (!value) return "Uncategorized";
+  const alias = LABEL_ALIASES[value];
+  if (alias) return alias;
   return value
     .replaceAll("_", " ")
     .replaceAll("-", " ")
@@ -31,7 +46,7 @@ export function titleCaseLabel(value?: string | null) {
 export function primaryCategoryLabel(document: { category?: string | null; workflow_metadata?: Record<string, unknown> | null; document_type?: string | null }) {
   const interpretation = (document.workflow_metadata?.category_interpretation ?? {}) as Record<string, unknown>;
   const profile = typeof interpretation.profile === "string" ? interpretation.profile : null;
-  return titleCaseLabel(profile || document.category || document.document_type || "document");
+  return titleCaseLabel(document.category || profile || document.document_type || "document");
 }
 
 function workflowSummaryFields(document: { workflow_metadata?: Record<string, unknown> | null }) {

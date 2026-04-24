@@ -105,33 +105,57 @@ class DocumentParser:
             return f"{merchant} receipt" if merchant else "Receipt"
         if self._looks_like_profile_record(text):
             return "Profile Note"
-        if self._looks_like_syllabus(text):
-            for line in lines[:10]:
-                cleaned = re.sub(r"\s+", " ", line).strip(":- ")
-                if (
-                    4 <= len(cleaned) <= 120
-                    and not self._is_placeholder_title(cleaned)
-                    and any(keyword in cleaned.lower() for keyword in ["syllabus", "course", "seminar", "guide"])
-                ):
-                    return cleaned
-        if self._looks_like_presentation_guide(text):
-            for line in lines[:10]:
-                cleaned = re.sub(r"\s+", " ", line).strip(":- ")
-                if (
-                    4 <= len(cleaned) <= 120
-                    and not self._is_placeholder_title(cleaned)
-                    and any(keyword in cleaned.lower() for keyword in ["presentation", "speaker", "talk", "guide"])
-                ):
-                    return cleaned
-        for line in lines[:8]:
+        candidates: list[tuple[int, str]] = []
+        for index, line in enumerate(lines[:12]):
             cleaned = re.sub(r"\s+", " ", line).strip(":- ")
-            if (
-                4 <= len(cleaned) <= 100
-                and not re.search(r"^\d+([./-]\d+)*$", cleaned)
-                and not self._is_placeholder_title(cleaned)
-            ):
-                return cleaned
+            if not cleaned:
+                continue
+            score = self._score_title_candidate(cleaned, index=index, text=text)
+            if score > 0:
+                candidates.append((score, cleaned))
+        if candidates:
+            candidates.sort(key=lambda item: (-item[0], len(item[1])))
+            return candidates[0][1]
         return filename.rsplit(".", 1)[0] if filename else "Untitled document"
+
+    def _score_title_candidate(self, value: str, index: int, text: str) -> int:
+        lowered = value.lower()
+        if self._is_placeholder_title(value):
+            return -100
+        if len(value) < 4 or len(value) > 120:
+            return -40
+        if re.search(r"^\d+([./-]\d+)*$", value):
+            return -40
+
+        score = 30 - (index * 2)
+        if re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", value):
+            score += 30
+        if any(keyword in lowered for keyword in ["syllabus", "course guide", "presentation", "speaker", "resume", "profile", "guide"]):
+            score += 20
+        if re.match(r"^[A-Z][A-Za-z0-9&,'./() -]{4,}$", value):
+            score += 10
+        if ":" in value:
+            score -= 8
+        if re.match(r"^(course description|overview|summary|introduction|objectives?)\s*:", lowered):
+            score -= 30
+        if re.match(r"^(this|these|students|you will|in this course|the purpose of)\b", lowered):
+            score -= 35
+        if len(value.split()) > 12:
+            score -= 18
+        if value.endswith("."):
+            score -= 14
+        if self._looks_like_sentence(value):
+            score -= 22
+        if text and value.lower() == text.splitlines()[0].strip().lower() and self._looks_like_sentence(value):
+            score -= 8
+        return score
+
+    def _looks_like_sentence(self, value: str) -> bool:
+        lowered = value.lower().strip()
+        return (
+            len(lowered.split()) >= 8
+            and bool(re.search(r"\b(is|are|will|introduces|provides|covers|describes|contains)\b", lowered))
+        )
 
     def _guess_merchant(self, lines: list[str]) -> str | None:
         for line in lines[:6]:

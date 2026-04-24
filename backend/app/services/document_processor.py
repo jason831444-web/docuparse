@@ -99,9 +99,11 @@ class DocumentProcessor:
             )
             document.provider_chain = "+".join(provider_chain)
             document.title = self._apply_title_hint(document.title, interpretation)
-            document.category = interpretation.category or document.category
+            document.category = self._apply_category_hint(document.category, interpretation)
+            document.document_type = self._refined_document_type(document.document_type, interpretation)
             if interpretation.summary_hint:
                 document.summary = interpretation.summary_hint
+            document.tags = self._merge_tags(document.tags, interpretation)
             document.ai_extraction_notes = self._notes(
                 (ingestion_notes + quality_notes + ai_result.extraction_notes)
                 + self._interpretation_notes(interpretation)
@@ -240,3 +242,40 @@ class DocumentProcessor:
         if interpretation.profile in {"profile_record", "resume_profile"} and current_title != interpretation.title_hint:
             return interpretation.title_hint
         return current_title
+
+    def _apply_category_hint(self, current_category: str | None, interpretation: CategoryInterpretation) -> str | None:
+        specific_profiles = {
+            "syllabus",
+            "course_guide",
+            "presentation_guide",
+            "speaking_notes",
+            "resume_profile",
+            "profile_record",
+            "repair_service_receipt",
+            "utility_bill",
+            "meeting_notice",
+            "instructional_memo",
+            "invoice",
+        }
+        if interpretation.profile in specific_profiles:
+            return interpretation.profile
+        return interpretation.category or current_category
+
+    def _refined_document_type(self, current_type, interpretation: CategoryInterpretation):
+        profile = interpretation.profile
+        if profile in {"syllabus", "course_guide", "resume_profile", "profile_record", "invoice", "utility_bill"}:
+            return type(current_type).document
+        if profile in {"presentation_guide", "speaking_notes", "instructional_memo"}:
+            return type(current_type).memo
+        if profile == "meeting_notice":
+            return type(current_type).notice
+        if profile in {"repair_service_receipt", "receipt"}:
+            return type(current_type).receipt
+        return current_type
+
+    def _merge_tags(self, current_tags: list[str], interpretation: CategoryInterpretation) -> list[str]:
+        tags = list(current_tags or [])
+        for value in [interpretation.profile, interpretation.category, interpretation.subtype]:
+            if value and value not in {"generic_document", "other", "document", "notice"}:
+                tags.append(value)
+        return list(dict.fromkeys(tags))
