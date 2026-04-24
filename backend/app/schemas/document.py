@@ -31,6 +31,9 @@ class DocumentRead(DocumentBase):
     original_filename: str
     stored_file_path: str
     mime_type: str
+    source_file_type: str | None = None
+    extraction_method: str | None = None
+    ingestion_metadata: dict | None = None
     confidence_score: Decimal | None = None
     ai_document_type: DocumentType | None = None
     ai_confidence_score: Decimal | None = None
@@ -41,6 +44,13 @@ class DocumentRead(DocumentBase):
     provider_chain: str | None = None
     merge_strategy: str | None = None
     field_sources: dict[str, str] | None = None
+    workflow_summary: str | None = None
+    action_items: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    key_dates: list[str] = Field(default_factory=list)
+    urgency_level: str | None = None
+    follow_up_required: bool = False
+    workflow_metadata: dict | None = None
     processing_status: ProcessingStatus
     preview_image_path: str | None = None
     processing_error: str | None = None
@@ -65,4 +75,6 @@ class DocumentStats(BaseModel):
     completed: int
     processing: int
     failed: int
+    needs_review: int = 0
+    queued: int = 0
     recent: list[DocumentRead]

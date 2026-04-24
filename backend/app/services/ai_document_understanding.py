@@ -1,9 +1,15 @@
 import base64
+import html
 import json
+import logging
+import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +18,40 @@ from PIL import Image, ImageFilter, ImageStat
 from app.core.config import get_settings
 from app.models.document import DocumentType
 from app.services.parser import DocumentParser, ParsedDocument
+
+
+logger = logging.getLogger(__name__)
+
+
+class HTMLTableTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[str]] = []
+        self._current_row: list[str] | None = None
+        self._current_cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "tr":
+            self._current_row = []
+        elif tag in {"td", "th"}:
+            self._current_cell = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"td", "th"} and self._current_row is not None and self._current_cell is not None:
+            cell = self._normalize_text(" ".join(self._current_cell))
+            self._current_row.append(cell)
+            self._current_cell = None
+        elif tag == "tr" and self._current_row is not None:
+            if any(cell for cell in self._current_row):
+                self.rows.append(self._current_row)
+            self._current_row = None
+
+    def handle_data(self, data: str) -> None:
+        if self._current_cell is not None:
+            self._current_cell.append(data)
+
+    def _normalize_text(self, value: str) -> str:
+        return re.sub(r"\s+", " ", html.unescape(value)).strip()
 
 
 CATEGORY_MAP = {
@@ -65,13 +105,6 @@ class DocumentAIService:
 
 
 class LocalDocumentAIService(DocumentAIService):
-    """Production-safe local baseline for AI-style document understanding.
-
-    It combines OCR text, image-quality signals, layout-aware receipt fields, and
-    classification/category scoring. A stronger multimodal model can replace or
-    augment this service without changing the processor or API routes.
-    """
-
     provider_name = "heuristic_fallback"
 
     def __init__(self) -> None:
@@ -97,7 +130,12 @@ class LocalDocumentAIService(DocumentAIService):
         category = self._infer_category(text, document_type) or self._normalize_category(parsed.category)
         title = self._title(lines, document_type, parsed, filename)
         confidence = self._confidence(type_confidence, image_quality, raw_text, total, document_type)
-        notes = quality_notes + self._field_notes(document_type, total, parsed.extracted_date or self.parser._extract_date(text), lines)
+        notes = quality_notes + self._field_notes(
+            document_type,
+            total,
+            parsed.extracted_date or self.parser._extract_date(text),
+            lines,
+        )
         review_required = confidence < Decimal("0.62") or bool(notes)
         tags = self._tags(text, category, document_type, parsed.tags)
 
@@ -143,6 +181,8 @@ class LocalDocumentAIService(DocumentAIService):
         return lines
 
     def _image_quality(self, image_path: Path) -> tuple[list[str], Decimal]:
+        if image_path.suffix.lower().lstrip(".") not in {"jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff"}:
+            return [], Decimal("0.86")
         notes: list[str] = []
         try:
             with Image.open(image_path) as image:
@@ -192,7 +232,7 @@ class LocalDocumentAIService(DocumentAIService):
         return None
 
     def _has_label(self, line: str, label: str) -> bool:
-        escaped = re.escape(label).replace("\\ ", r"\s+")
+        escaped = re.escape(label).replace("\\ ", r"[\s_]+")
         return re.search(rf"(?<![A-Za-z]){escaped}(?![A-Za-z])", line, flags=re.IGNORECASE) is not None
 
     def _last_amount(self, text: str) -> Decimal | None:
@@ -200,7 +240,11 @@ class LocalDocumentAIService(DocumentAIService):
         return self._to_decimal(matches[-1]) if matches else None
 
     def _largest_amount(self, text: str) -> Decimal | None:
-        amounts = [value for value in (self._to_decimal(match) for match in re.findall(r"([0-9]{1,6}(?:,[0-9]{3})*\.[0-9]{2})", text)) if value is not None]
+        amounts = [
+            value
+            for value in (self._to_decimal(match) for match in re.findall(r"([0-9]{1,6}(?:,[0-9]{3})*\.[0-9]{2})", text))
+            if value is not None
+        ]
         return max(amounts) if amounts else None
 
     def _to_decimal(self, value: str | None) -> Decimal | None:
@@ -244,7 +288,12 @@ class LocalDocumentAIService(DocumentAIService):
         if document_type == DocumentType.receipt:
             merchant = self._merchant(lines, parsed)
             return f"{merchant} receipt" if merchant else "Receipt"
-        return parsed.title or (lines[0][:120] if lines else filename.rsplit(".", 1)[0])
+        if parsed.title:
+            return parsed.title
+        for line in lines:
+            if not re.fullmatch(r"(Page|Slide)\s+\d+", line, flags=re.IGNORECASE):
+                return line[:120]
+        return filename.rsplit(".", 1)[0]
 
     def _merchant(self, lines: list[str], parsed: ParsedDocument) -> str | None:
         if parsed.merchant_name:
@@ -260,7 +309,17 @@ class LocalDocumentAIService(DocumentAIService):
             return None
         if document_type == DocumentType.receipt:
             return "Receipt with merchant, date, totals, and tax fields extracted when visible."
-        body = " ".join(lines[:8])
+        unique_lines = []
+        seen = set()
+        for line in lines:
+            normalized = re.sub(r"\s+", " ", line).strip()
+            key = normalized.casefold()
+            if not normalized or key in seen or re.fullmatch(r"(Page|Slide)\s+\d+", normalized, flags=re.IGNORECASE):
+                continue
+            seen.add(key)
+            unique_lines.append(normalized)
+        fact_lines = [line for line in unique_lines if ":" in line and len(line) <= 120]
+        body = " ; ".join((fact_lines or unique_lines)[:4])
         return body[:500]
 
     def _field_notes(self, document_type: DocumentType, total: Decimal | None, extracted_date: date | None, lines: list[str]) -> list[str]:
@@ -299,8 +358,6 @@ class LocalDocumentAIService(DocumentAIService):
 
 
 class OpenAIVisionDocumentAIService(DocumentAIService):
-    """Optional legacy multimodal provider. Kept for extension, not used by the default open-source chain."""
-
     provider_name = "openai"
 
     def __init__(self) -> None:
@@ -413,6 +470,10 @@ class PaddleOCRVLDocumentAIService(DocumentAIService):
     def __init__(self) -> None:
         self.settings = get_settings()
         self.local_normalizer = LocalDocumentAIService()
+
+        logger.warning("PaddleOCR-VL provider initialization started")
+        start_time = time.perf_counter()
+
         try:
             from paddleocr import PaddleOCRVL
         except Exception as exc:
@@ -421,17 +482,28 @@ class PaddleOCRVLDocumentAIService(DocumentAIService):
                 "and configure PaddleOCR-VL model directories."
             ) from exc
 
+        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+
+        engine = self._clean_str(self.settings.paddleocr_vl_engine)
+        model_dir = self._clean_path(self.settings.paddleocr_vl_model_dir)
+        layout_model_dir = self._clean_path(self.settings.paddleocr_vl_layout_model_dir)
+
         kwargs: dict[str, Any] = {
             "pipeline_version": "v1.5",
             "device": self.settings.paddleocr_vl_device,
-            "engine": self.settings.paddleocr_vl_engine,
         }
-        if self.settings.paddleocr_vl_model_dir:
-            kwargs["vl_rec_model_dir"] = str(self.settings.paddleocr_vl_model_dir)
-        if self.settings.paddleocr_vl_layout_model_dir:
-            kwargs["layout_detection_model_dir"] = str(self.settings.paddleocr_vl_layout_model_dir)
-        kwargs = {key: value for key, value in kwargs.items() if value is not None}
+
+        if engine:
+            kwargs["engine"] = engine
+        if model_dir:
+            kwargs["vl_rec_model_dir"] = str(model_dir)
+        if layout_model_dir:
+            kwargs["layout_detection_model_dir"] = str(layout_model_dir)
+
         self.pipeline = PaddleOCRVL(**kwargs)
+
+        elapsed = time.perf_counter() - start_time
+        logger.warning("PaddleOCR-VL provider initialization finished in %.2fs", elapsed)
 
     def analyze(
         self,
@@ -440,49 +512,296 @@ class PaddleOCRVLDocumentAIService(DocumentAIService):
         parsed: ParsedDocument,
         filename: str = "",
     ) -> AIDocumentUnderstandingResult:
+        preprocess_start = time.perf_counter()
+        analysis_image_path = self._prepare_image_for_inference(image_path)
+        preprocess_elapsed = time.perf_counter() - preprocess_start
+
+        inference_start = time.perf_counter()
         try:
-            output = self.pipeline.predict(str(image_path))
-            provider_text = self._extract_text(output)
-            merged_text = "\n".join(part for part in [provider_text, raw_text] if part.strip())
-            provider_parsed = DocumentParser().parse(merged_text or raw_text, filename)
-            result = self.local_normalizer.analyze(image_path, merged_text or raw_text, provider_parsed, filename)
-            result.provider = self.provider_name
-            result.extraction_provider = self.provider_name
-            result.provider_chain = [self.provider_name]
-            result.merge_strategy = "paddleocr_vl_structured_output_normalized"
-            result.field_sources.update({key: self.provider_name for key in result.field_sources})
-            result.extraction_notes.append("PaddleOCR-VL primary extraction completed.")
-            if provider_text:
-                result.cleaned_raw_text = provider_text
-            return result
+            output = self.pipeline.predict(str(analysis_image_path))
         except Exception as exc:
             raise RuntimeError(f"PaddleOCR-VL inference failed: {exc}") from exc
+        inference_elapsed = time.perf_counter() - inference_start
+
+        provider_text = self._extract_text(output)
+        merged_text = "\n".join(part for part in [provider_text, raw_text] if part.strip())
+
+        logger.warning("PaddleOCR-VL raw output type: %s", type(output))
+
+        first_item = None
+        try:
+            first_item = output[0] if output else None
+        except Exception:
+            first_item = None
+
+        logger.warning(
+            "PaddleOCR-VL first item type: %s",
+            type(first_item) if first_item is not None else "no output",
+        )
+        logger.warning(
+            "PaddleOCR-VL first item attrs preview: %s",
+            dir(first_item)[:50] if first_item is not None else "no output",
+        )
+        first_json = self._coerce_payload(getattr(first_item, "json", None)) if first_item is not None else None
+        parsing_preview = self._parsing_res_preview(first_json)
+        logger.warning("PaddleOCR-VL parsing_res_list preview: %s", parsing_preview)
+        logger.warning("PaddleOCR-VL extracted provider_text preview:\n%s", self._preview_text(provider_text))
+        logger.warning("PaddleOCR-VL merged_text preview:\n%s", self._preview_text(merged_text))
+
+        postprocess_start = time.perf_counter()
+        provider_parsed = DocumentParser().parse(merged_text or raw_text, filename)
+        result = self.local_normalizer.analyze(image_path, merged_text or raw_text, provider_parsed, filename)
+        result.provider = self.provider_name
+        result.extraction_provider = self.provider_name
+        result.provider_chain = [self.provider_name]
+        result.merge_strategy = "paddleocr_vl_structured_output_normalized"
+        result.field_sources.update({key: self.provider_name for key in result.field_sources})
+        result.extraction_notes.append("PaddleOCR-VL primary extraction completed.")
+        if provider_text:
+            result.cleaned_raw_text = provider_text
+        postprocess_elapsed = time.perf_counter() - postprocess_start
+
+        logger.warning(
+            "PaddleOCR-VL timings | preprocess=%.2fs inference=%.2fs postprocess=%.2fs file=%s",
+            preprocess_elapsed,
+            inference_elapsed,
+            postprocess_elapsed,
+            image_path.name,
+        )
+        return result
+
+    def _prepare_image_for_inference(self, image_path: Path) -> Path:
+        max_dimension = 1800
+        try:
+            with Image.open(image_path) as image:
+                width, height = image.size
+                longest = max(width, height)
+                if longest <= max_dimension:
+                    return image_path
+
+                scale = max_dimension / float(longest)
+                resized = image.resize((int(width * scale), int(height * scale)), Image.Resampling.LANCZOS)
+                resized_path = image_path.with_name(f"{image_path.stem}_resized{image_path.suffix}")
+                resized.save(resized_path, quality=90)
+                return resized_path
+        except Exception:
+            return image_path
 
     def _extract_text(self, output: Any) -> str:
-        fragments: list[str] = []
-        for item in output or []:
-            json_payload = getattr(item, "json", None)
-            markdown_payload = getattr(item, "markdown", None)
-            if isinstance(markdown_payload, dict):
-                texts = markdown_payload.get("markdown_texts")
-                if isinstance(texts, list):
-                    fragments.extend(str(text) for text in texts)
-                elif isinstance(texts, str):
-                    fragments.append(texts)
-            self._walk_json(json_payload, fragments)
-        return "\n".join(fragment.strip() for fragment in fragments if fragment and fragment.strip())
+        parsing_lines: list[str] = []
+        markdown_lines: list[str] = []
+        parsing_blocks_seen = 0
 
-    def _walk_json(self, value: Any, fragments: list[str]) -> None:
+        for item in output or []:
+            json_payload = self._coerce_payload(getattr(item, "json", None))
+            parsing_blocks = self._parsing_res_list(json_payload)
+            if parsing_blocks:
+                parsing_blocks_seen += len(parsing_blocks)
+                parsing_lines.extend(self._lines_from_parsing_blocks(parsing_blocks))
+            else:
+                parsing_lines.extend(self._lines_from_generic_json(json_payload))
+
+            markdown_payload = self._coerce_payload(getattr(item, "markdown", None))
+            markdown_lines.extend(self._lines_from_markdown(markdown_payload))
+
+        source = "json.res.parsing_res_list"
+        lines = self._dedupe_lines(parsing_lines)
+        if len(lines) < 3:
+            source = "markdown_texts_fallback" if markdown_lines else "empty"
+            lines = self._dedupe_lines(markdown_lines)
+
+        logger.warning(
+            "PaddleOCR-VL text normalization source=%s parsing_blocks=%s lines=%s markdown_fallback_lines=%s",
+            source,
+            parsing_blocks_seen,
+            len(lines),
+            len(markdown_lines),
+        )
+        return "\n".join(lines)
+
+    def _coerce_payload(self, payload: Any) -> Any:
+        if callable(payload):
+            try:
+                return payload()
+            except TypeError:
+                return payload
+        return payload
+
+    def _parsing_res_list(self, json_payload: Any) -> list[dict[str, Any]]:
+        if not isinstance(json_payload, dict):
+            return []
+        res = json_payload.get("res")
+        if not isinstance(res, dict):
+            return []
+        blocks = res.get("parsing_res_list")
+        if not isinstance(blocks, list):
+            return []
+        return [block for block in blocks if isinstance(block, dict)]
+
+    def _lines_from_parsing_blocks(self, blocks: list[dict[str, Any]]) -> list[str]:
+        ordered_blocks = sorted(blocks, key=self._block_order)
+        lines: list[str] = []
+        for block in ordered_blocks:
+            label = str(block.get("block_label") or "").lower()
+            content = block.get("block_content")
+            if not isinstance(content, str):
+                continue
+            lines.extend(self._lines_from_block_content(label, content))
+        return lines
+
+    def _block_order(self, block: dict[str, Any]) -> tuple[int, int]:
+        raw_order = block.get("block_order")
+        try:
+            return int(raw_order), 0
+        except (TypeError, ValueError):
+            return 10_000, 0
+
+    def _lines_from_block_content(self, label: str, content: str) -> list[str]:
+        if self._is_table_block(label, content):
+            table_lines = self._table_to_lines(content)
+            if table_lines:
+                return table_lines
+        return self._text_to_lines(self._strip_html(content))
+
+    def _is_table_block(self, label: str, content: str) -> bool:
+        lowered = content.lower()
+        return "table" in label or "<table" in lowered or "<tr" in lowered or "<td" in lowered
+
+    def _table_to_lines(self, content: str) -> list[str]:
+        if "<" not in content:
+            return self._text_to_lines(content)
+
+        parser = HTMLTableTextExtractor()
+        try:
+            parser.feed(content)
+        except Exception:
+            return self._text_to_lines(self._strip_html(content))
+
+        lines: list[str] = []
+        for row in parser.rows:
+            cells = [self._normalize_line(cell) for cell in row if self._normalize_line(cell)]
+            if not cells:
+                continue
+            line = self._join_table_cells(cells)
+            if line:
+                lines.append(line)
+
+        return lines or self._text_to_lines(self._strip_html(content))
+
+    def _join_table_cells(self, cells: list[str]) -> str:
+        if len(cells) == 1:
+            return cells[0]
+        if len(cells) == 2:
+            return f"{cells[0]} {cells[1]}"
+        if self._looks_like_receipt_amount(cells[-1]):
+            return f"{' '.join(cells[:-1])} {cells[-1]}"
+        return " ".join(cells)
+
+    def _looks_like_receipt_amount(self, value: str) -> bool:
+        return re.search(r"(?:[$€£¥₩]\s*)?\d{1,6}(?:,\d{3})*(?:\.\d{2})?$", value.strip()) is not None
+
+    def _lines_from_generic_json(self, value: Any) -> list[str]:
+        fragments: list[str] = []
+        self._walk_generic_json(value, fragments)
+        lines: list[str] = []
+        for fragment in fragments:
+            lines.extend(self._lines_from_block_content("", fragment))
+        return lines
+
+    def _walk_generic_json(self, value: Any, fragments: list[str]) -> None:
         if isinstance(value, dict):
             for key in ["block_content", "rec_text", "text", "content"]:
                 content = value.get(key)
                 if isinstance(content, str):
                     fragments.append(content)
             for nested in value.values():
-                self._walk_json(nested, fragments)
+                self._walk_generic_json(nested, fragments)
         elif isinstance(value, list):
             for nested in value:
-                self._walk_json(nested, fragments)
+                self._walk_generic_json(nested, fragments)
+
+    def _lines_from_markdown(self, markdown_payload: Any) -> list[str]:
+        if not isinstance(markdown_payload, dict):
+            return []
+        texts = markdown_payload.get("markdown_texts")
+        if isinstance(texts, str):
+            texts = [texts]
+        if not isinstance(texts, list):
+            return []
+        lines: list[str] = []
+        for text in texts:
+            if isinstance(text, str):
+                lines.extend(self._lines_from_block_content("markdown", text))
+        return lines
+
+    def _strip_html(self, value: str) -> str:
+        value = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", value)
+        value = re.sub(r"(?i)</\s*(p|div|li|tr|h[1-6])\s*>", "\n", value)
+        value = re.sub(r"<[^>]+>", " ", value)
+        return html.unescape(value)
+
+    def _text_to_lines(self, value: str) -> list[str]:
+        return [
+            normalized
+            for line in value.splitlines()
+            if (normalized := self._normalize_line(line))
+        ]
+
+    def _normalize_line(self, value: str) -> str:
+        value = html.unescape(value)
+        value = value.replace("\u00a0", " ")
+        value = re.sub(r"[ \t\r\f\v]+", " ", value)
+        value = re.sub(r"\s+([:;,.])", r"\1", value)
+        return value.strip(" |")
+
+    def _dedupe_lines(self, lines: list[str]) -> list[str]:
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for line in lines:
+            normalized = self._normalize_line(line)
+            if not normalized:
+                continue
+            key = normalized.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(normalized)
+        return deduped
+
+    def _parsing_res_preview(self, json_payload: Any) -> list[dict[str, Any]]:
+        preview = []
+        for block in self._parsing_res_list(json_payload)[:8]:
+            content = block.get("block_content")
+            preview.append(
+                {
+                    "block_order": block.get("block_order"),
+                    "block_label": block.get("block_label"),
+                    "block_content_preview": self._preview_text(content if isinstance(content, str) else ""),
+                }
+            )
+        return preview
+
+    def _preview_text(self, value: str, limit: int = 1200) -> str:
+        if not value:
+            return ""
+        cleaned = re.sub(r"(?is)<table.*?</table>", "[HTML_TABLE]", value)
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", html.unescape(cleaned)).strip()
+        return cleaned[:limit]
+
+    def _clean_str(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    def _clean_path(self, value: Path | str | None) -> Path | None:
+        if value is None:
+            return None
+        if isinstance(value, Path):
+            return value
+        cleaned = str(value).strip()
+        return Path(cleaned) if cleaned else None
 
 
 class Qwen25VLDocumentAIService(DocumentAIService):
@@ -567,7 +886,7 @@ class HybridOpenSourceDocumentAIService(DocumentAIService):
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.local_fallback = LocalDocumentAIService()
+        self.local_fallback = get_local_document_ai_service()
 
     def analyze(
         self,
@@ -599,7 +918,6 @@ class HybridOpenSourceDocumentAIService(DocumentAIService):
         if not final.provider_chain:
             final.provider_chain = [final.provider or final.extraction_provider or "unknown"]
         final.extraction_provider = final.extraction_provider or final.provider_chain[0]
-        final.refinement_provider = final.refinement_provider
         final.review_required = final.review_required or self._requires_review(final)
         return final
 
@@ -622,13 +940,13 @@ class HybridOpenSourceDocumentAIService(DocumentAIService):
     def _provider(self, provider_name: str) -> DocumentAIService:
         normalized = provider_name.lower()
         if normalized == "paddleocr_vl":
-            return PaddleOCRVLDocumentAIService()
+            return get_paddleocr_vl_document_ai_service()
         if normalized == "qwen2_5_vl":
-            return Qwen25VLDocumentAIService()
+            return get_qwen25_vl_document_ai_service()
         if normalized in {"heuristic", "heuristic_fallback", "local"}:
             return self.local_fallback
         if normalized == "openai":
-            return OpenAIVisionDocumentAIService()
+            return get_openai_vision_document_ai_service()
         raise ValueError(f"Unsupported AI provider: {provider_name}")
 
     def _should_refine(self, result: AIDocumentUnderstandingResult) -> tuple[bool, list[str]]:
@@ -706,5 +1024,31 @@ class HybridOpenSourceDocumentAIService(DocumentAIService):
         return list(dict.fromkeys(provider for provider in providers if provider))
 
 
+@lru_cache(maxsize=1)
+def get_local_document_ai_service() -> LocalDocumentAIService:
+    logger.warning("Creating shared LocalDocumentAIService instance")
+    return LocalDocumentAIService()
+
+
+@lru_cache(maxsize=1)
+def get_openai_vision_document_ai_service() -> OpenAIVisionDocumentAIService:
+    logger.warning("Creating shared OpenAIVisionDocumentAIService instance")
+    return OpenAIVisionDocumentAIService()
+
+
+@lru_cache(maxsize=1)
+def get_paddleocr_vl_document_ai_service() -> PaddleOCRVLDocumentAIService:
+    logger.warning("Creating shared PaddleOCRVLDocumentAIService instance")
+    return PaddleOCRVLDocumentAIService()
+
+
+@lru_cache(maxsize=1)
+def get_qwen25_vl_document_ai_service() -> Qwen25VLDocumentAIService:
+    logger.warning("Creating shared Qwen25VLDocumentAIService instance")
+    return Qwen25VLDocumentAIService()
+
+
+@lru_cache(maxsize=1)
 def get_document_ai_service() -> DocumentAIService:
+    logger.warning("Creating shared HybridOpenSourceDocumentAIService instance")
     return HybridOpenSourceDocumentAIService()

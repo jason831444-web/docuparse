@@ -1,27 +1,46 @@
 import shutil
 import uuid
+import mimetypes
+from typing import Protocol
 from pathlib import Path
 
 from fastapi import UploadFile
 
 from app.core.config import get_settings
+from app.services.file_type_detection import FileTypeDetector
 
 
-ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png"}
+ALLOWED_EXTENSIONS = FileTypeDetector().allowed_extensions()
+
+
+class StorageService(Protocol):
+    def save_upload(self, file: UploadFile) -> Path:
+        ...
+
+    def delete(self, stored_path: str | None) -> None:
+        ...
+
+    def public_url(self, stored_path: str) -> str:
+        ...
 
 
 class LocalStorageService:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.root = self.settings.upload_dir
+        self.detector = FileTypeDetector()
 
     def validate_upload(self, file: UploadFile) -> None:
-        if file.content_type not in ALLOWED_IMAGE_TYPES:
-            raise ValueError("Only JPG, JPEG, and PNG images are supported.")
+        extension = Path(file.filename or "").suffix.lower().lstrip(".")
+        if extension not in ALLOWED_EXTENSIONS:
+            supported = ", ".join(sorted(ALLOWED_EXTENSIONS))
+            raise ValueError(f"Unsupported file type. Supported formats: {supported}.")
 
     def save_upload(self, file: UploadFile) -> Path:
         self.validate_upload(file)
-        suffix = ALLOWED_IMAGE_TYPES[file.content_type or ""]
+        suffix = Path(file.filename or "").suffix.lower()
+        if not suffix:
+            suffix = mimetypes.guess_extension(file.content_type or "") or ".bin"
         destination = self.root / f"{uuid.uuid4()}{suffix}"
         with destination.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -38,3 +57,24 @@ class LocalStorageService:
 
     def public_url(self, stored_path: str) -> str:
         return f"{self.settings.backend_base_url}/uploads/{Path(stored_path).name}"
+
+
+class ObjectStorageService:
+    """Deployment scaffold for S3/GCS/Azure style storage.
+
+    The app remains local-first; this class makes the boundary explicit for a
+    future object-storage implementation without hard-binding development to a
+    cloud provider.
+    """
+
+    def __init__(self) -> None:
+        raise NotImplementedError("Object storage is not configured. Use STORAGE_BACKEND=local for development.")
+
+
+def get_storage_service() -> StorageService:
+    settings = get_settings()
+    if settings.storage_backend == "local":
+        return LocalStorageService()
+    if settings.storage_backend in {"object", "s3", "gcs", "azure"}:
+        return ObjectStorageService()
+    raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")

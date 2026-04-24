@@ -9,15 +9,16 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.document import Document, DocumentType, ProcessingStatus
 from app.schemas.document import DocumentListResponse, DocumentRead, DocumentStats, DocumentUpdate
-from app.services.document_processor import DocumentProcessor
 from app.services.export import document_to_json, documents_to_csv
-from app.services.storage import LocalStorageService
+from app.services.queue_service import get_document_queue
+from app.services.storage import get_storage_service
+from app.services.workflow_enrichment import DocumentWorkflowEnrichmentService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 def _to_read(document: Document) -> DocumentRead:
-    storage = LocalStorageService()
+    storage = get_storage_service()
     return DocumentRead.model_validate(
         {**document.__dict__, "file_url": storage.public_url(document.stored_file_path)}
     )
@@ -25,7 +26,7 @@ def _to_read(document: Document) -> DocumentRead:
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 def upload_document(file: Annotated[UploadFile, File(...)], db: Session = Depends(get_db)) -> DocumentRead:
-    storage = LocalStorageService()
+    storage = get_storage_service()
     try:
         stored_path = storage.save_upload(file)
     except ValueError as exc:
@@ -40,7 +41,7 @@ def upload_document(file: Annotated[UploadFile, File(...)], db: Session = Depend
     db.add(document)
     db.commit()
     db.refresh(document)
-    document = DocumentProcessor().process(db, document)
+    document = get_document_queue().enqueue(db, document)
     return _to_read(document)
 
 
@@ -98,9 +99,11 @@ def get_stats(db: Session = Depends(get_db)) -> DocumentStats:
         total=db.scalar(select(func.count()).select_from(Document)) or 0,
         receipts=db.scalar(select(func.count()).select_from(Document).where(Document.document_type == DocumentType.receipt)) or 0,
         notices=db.scalar(select(func.count()).select_from(Document).where(Document.document_type == DocumentType.notice)) or 0,
-        completed=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status == ProcessingStatus.completed)) or 0,
-        processing=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status == ProcessingStatus.processing)) or 0,
+        completed=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status.in_([ProcessingStatus.completed, ProcessingStatus.ready]))) or 0,
+        processing=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status.in_([ProcessingStatus.processing, ProcessingStatus.queued]))) or 0,
         failed=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status == ProcessingStatus.failed)) or 0,
+        needs_review=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status == ProcessingStatus.needs_review)) or 0,
+        queued=db.scalar(select(func.count()).select_from(Document).where(Document.processing_status == ProcessingStatus.queued)) or 0,
         recent=[_to_read(document) for document in documents],
     )
 
@@ -130,6 +133,17 @@ def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = De
         raise HTTPException(status_code=404, detail="Document not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(document, key, value)
+    workflow = DocumentWorkflowEnrichmentService().enrich(document, document.raw_text)
+    document.workflow_summary = workflow.workflow_summary
+    document.action_items = workflow.action_items
+    document.warnings = workflow.warnings
+    document.key_dates = workflow.key_dates
+    document.urgency_level = workflow.urgency_level
+    document.follow_up_required = workflow.follow_up_required
+    document.workflow_metadata = workflow.workflow_metadata or None
+    document.review_required = document.review_required or bool(workflow.warnings)
+    if document.processing_status not in {ProcessingStatus.processing, ProcessingStatus.queued, ProcessingStatus.failed}:
+        document.processing_status = ProcessingStatus.needs_review if document.review_required else ProcessingStatus.ready
     db.add(document)
     db.commit()
     db.refresh(document)
@@ -141,7 +155,7 @@ def delete_document(document_id: UUID, db: Session = Depends(get_db)) -> Respons
     document = db.get(Document, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    LocalStorageService().delete(document.stored_file_path)
+    get_storage_service().delete(document.stored_file_path)
     db.delete(document)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -152,7 +166,7 @@ def reprocess_document(document_id: UUID, db: Session = Depends(get_db)) -> Docu
     document = db.get(Document, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    document = DocumentProcessor().process(db, document)
+    document = get_document_queue().enqueue(db, document)
     return _to_read(document)
 
 

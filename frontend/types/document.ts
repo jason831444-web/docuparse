@@ -1,11 +1,14 @@
 export type DocumentType = "receipt" | "notice" | "document" | "memo" | "other";
-export type ProcessingStatus = "uploaded" | "processing" | "completed" | "failed";
+export type ProcessingStatus = "uploaded" | "queued" | "processing" | "ready" | "needs_review" | "completed" | "failed";
 
 export interface DocumentRecord {
   id: string;
   original_filename: string;
   stored_file_path: string;
   mime_type: string;
+  source_file_type: string | null;
+  extraction_method: string | null;
+  ingestion_metadata: Record<string, unknown> | null;
   document_type: DocumentType;
   title: string | null;
   raw_text: string | null;
@@ -28,6 +31,13 @@ export interface DocumentRecord {
   provider_chain: string | null;
   merge_strategy: string | null;
   field_sources: Record<string, string> | null;
+  workflow_summary: string | null;
+  action_items: string[];
+  warnings: string[];
+  key_dates: string[];
+  urgency_level: "low" | "medium" | "high" | null;
+  follow_up_required: boolean;
+  workflow_metadata: Record<string, unknown> | null;
   processing_status: ProcessingStatus;
   preview_image_path: string | null;
   processing_error: string | null;
@@ -50,6 +60,8 @@ export interface DocumentStats {
   completed: number;
   processing: number;
   failed: number;
+  needs_review: number;
+  queued: number;
   recent: DocumentRecord[];
 }
 

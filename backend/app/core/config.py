@@ -12,9 +12,26 @@ class Settings(BaseSettings):
     backend_base_url: str = "http://localhost:8001"
     cors_origins: list[str] = ["http://localhost:3001"]
     max_upload_mb: int = 12
+    storage_backend: str = "local"
+    processing_mode: str = "inline"
+    queue_backend: str = "local"
     ai_provider: str = "auto"
     ai_model: str = "gpt-4o-mini"
     openai_api_key: str | None = None
+    ai_interpretation_enabled: bool = True
+    ai_interpretation_provider: str = "gemma"
+    ai_interpretation_model: str = "google/gemma-4-E4B-it"
+    ai_interpretation_fallback_model: str = "google/gemma-2-2b-it"
+    ai_interpretation_enable_model_fallback: bool = True
+    ai_interpretation_local_prefer_small_model: bool = False
+    ai_interpretation_force_small_model: bool = False
+    ai_interpretation_max_chars: int = 12000
+    ai_interpretation_skip_trivial: bool = True
+    ai_interpretation_min_chars: int = 80
+    gemma_model_name: str = "google/gemma-4-E4B-it"
+    gemma_model_dir: Path | None = None
+    gemma_device: str = "auto"
+    huggingface_token: str | None = None
     ai_primary_provider: str = "paddleocr_vl"
     ai_secondary_provider: str = "qwen2_5_vl"
     ai_enable_second_pass: bool = True
@@ -28,6 +45,7 @@ class Settings(BaseSettings):
     qwen2_5_vl_model_name: str = "Qwen/Qwen2.5-VL-3B-Instruct"
     qwen2_5_vl_model_dir: Path | None = None
     qwen2_5_vl_device: str = "auto"
+    pdf_ocr_max_pages: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

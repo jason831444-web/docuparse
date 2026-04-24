@@ -1,0 +1,982 @@
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
+
+from app.models.document import Document, DocumentType
+from app.services.category_interpretation import CategoryInterpretation
+
+
+@dataclass
+class WorkflowEnrichment:
+    workflow_summary: str | None = None
+    action_items: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    key_dates: list[str] = field(default_factory=list)
+    urgency_level: str = "low"
+    follow_up_required: bool = False
+    workflow_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class DocumentWorkflowEnrichmentService:
+    """Post-extraction workflow layer.
+
+    This turns extracted document data into conservative, type-aware assistance.
+    It does not replace extraction or editing; it adds workflow context on top.
+    """
+
+    def enrich(
+        self,
+        document: Document,
+        normalized_text: str | None = None,
+        interpretation: CategoryInterpretation | None = None,
+    ) -> WorkflowEnrichment:
+        text = normalized_text or document.raw_text or ""
+        mode = self._workflow_mode(document, interpretation)
+        profile = interpretation.profile if interpretation and interpretation.profile else self._content_profile(document, text, mode)
+        if document.document_type == DocumentType.receipt:
+            result = self._receipt(document, text, mode)
+        elif profile in {"syllabus", "course_guide"}:
+            result = self._syllabus(document, text, mode)
+        elif profile == "resume_profile":
+            result = self._resume_profile(document, text, mode)
+        elif profile in {"presentation_guide", "speaking_notes"}:
+            result = self._presentation_guide(document, text, mode)
+        elif profile == "meeting_notice":
+            result = self._meeting_notice(document, text, mode)
+        elif profile == "profile_record":
+            result = self._profile_record(document, text, mode)
+        elif mode in {"utilities", "utility_bill"}:
+            result = self._utilities(document, text, mode)
+        elif mode in {"education", "notice"} or document.document_type == DocumentType.notice:
+            result = self._education_notice(document, text, mode)
+        elif mode == "health":
+            result = self._health(document, text, mode)
+        elif mode == "office":
+            result = self._office(document, text, mode)
+        elif mode in {"food_drink", "groceries", "retail", "transport"}:
+            result = self._spend_category(document, text, mode)
+        else:
+            result = self._generic(document, text, mode)
+
+        if interpretation:
+            result = self._apply_interpretation_hints(result, interpretation)
+        result.action_items = self._dedupe(result.action_items)
+        result.warnings = self._dedupe(result.warnings)
+        result.key_dates = self._normalize_date_list(result.key_dates)
+        result.workflow_metadata["workflow_mode"] = mode
+        result.workflow_metadata["content_profile"] = profile
+        result.workflow_metadata["source"] = "deterministic_workflow_enrichment"
+        if interpretation:
+            result.workflow_metadata["category_interpretation"] = {
+                "category": interpretation.category,
+                "profile": interpretation.profile,
+                "subtype": interpretation.subtype,
+                "title_hint": interpretation.title_hint,
+                "summary_hint": interpretation.summary_hint,
+                "key_fields": interpretation.key_fields,
+                "warnings": interpretation.warnings,
+                "workflow_hints": interpretation.workflow_hints,
+                "reasons": interpretation.reasons,
+                "confidence": interpretation.confidence,
+                "provider": interpretation.provider,
+                "provider_chain": interpretation.provider_chain,
+                "refinement_status": interpretation.refinement_status,
+                "diagnostics": interpretation.diagnostics,
+                "ai_assisted": interpretation.ai_assisted,
+            }
+        return result
+
+    def _workflow_mode(self, document: Document, interpretation: CategoryInterpretation | None = None) -> str:
+        category = ((interpretation.category if interpretation else None) or document.category or "").lower()
+        if category:
+            return category
+        if document.document_type == DocumentType.receipt:
+            return "receipt"
+        if document.document_type == DocumentType.notice:
+            return "notice"
+        if document.document_type == DocumentType.memo:
+            return "memo"
+        if document.document_type == DocumentType.document:
+            return "document"
+        return "other"
+
+    def _receipt(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        item_lines = self._item_lines(text)
+        category_context = self._category_context(text, mode)
+        expected_total = self._expected_total(document)
+        suspicious_total = False
+        validation_notes: list[str] = []
+        if expected_total is not None and document.extracted_amount is not None:
+            difference = abs(expected_total - document.extracted_amount)
+            suspicious_total = difference > Decimal("0.03")
+            if suspicious_total:
+                validation_notes.append(
+                    f"Subtotal plus tax ({expected_total}) does not match extracted total ({document.extracted_amount})."
+                )
+        elif document.extracted_amount is None:
+            validation_notes.append("No receipt total was detected.")
+
+        warnings = list(validation_notes)
+        if not document.merchant_name:
+            warnings.append("Merchant is missing; review before export.")
+        if not document.extracted_date:
+            warnings.append("Receipt date is missing; review before reimbursement or expense tracking.")
+
+        action_items = []
+        if warnings:
+            action_items.append("Review receipt merchant, date, and total.")
+        else:
+            action_items.append("Receipt is ready for expense export or filing.")
+
+        spend_summary = self._receipt_spend_summary(document, text)
+        return WorkflowEnrichment(
+            workflow_summary=spend_summary,
+            action_items=action_items,
+            warnings=warnings,
+            key_dates=self._key_dates(document, text),
+            urgency_level="medium" if warnings else "low",
+            follow_up_required=bool(warnings),
+            workflow_metadata={
+                "receipt": {
+                    "merchant_confidence": self._merchant_confidence(document),
+                    "expected_total": str(expected_total) if expected_total is not None else None,
+                    "suspicious_total": suspicious_total,
+                    "top_item_lines": item_lines[:6],
+                    "spend_summary": spend_summary,
+                    "category_context": category_context,
+                    "receipt_quality_flags": warnings,
+                }
+            },
+        )
+
+    def _utilities(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        due_date = self._date_near_label(text, ["due date", "payment due", "due by", "pay by"])
+        billing_period = self._billing_period(text)
+        amount_due = document.extracted_amount or self._amount_near_label(text, ["amount due", "total due", "balance due", "new charges"])
+        provider = document.merchant_name or self._first_meaningful_line(text)
+        warnings = []
+        action_items = []
+        if due_date:
+            action_items.append(f"Pay or schedule this bill by {due_date}.")
+        else:
+            warnings.append("No clear due date was detected.")
+            action_items.append("Review the bill for a payment deadline.")
+        if amount_due is None:
+            warnings.append("No clear amount due was detected.")
+        urgency = "high" if self._has_urgent_language(text) else ("medium" if due_date else "low")
+        return WorkflowEnrichment(
+            workflow_summary=self._sentence([provider, "utility bill", self._money(amount_due), f"due {due_date}" if due_date else None]),
+            action_items=action_items,
+            warnings=warnings,
+            key_dates=self._dedupe([due_date] + self._key_dates(document, text)),
+            urgency_level=urgency,
+            follow_up_required=True,
+            workflow_metadata={
+                "utilities": {
+                    "provider": provider,
+                    "amount_due": str(amount_due) if amount_due is not None else None,
+                    "due_date": due_date,
+                    "billing_period": billing_period,
+                    "payment_urgency": urgency,
+                    "comparison_ready": bool(amount_due and billing_period),
+                }
+            },
+        )
+
+    def _education_notice(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        deadline = self._date_near_label(text, ["deadline", "due", "register by", "submit by", "rsvp by"])
+        key_dates = self._key_dates(document, text)
+        action_items = self._action_lines(text)
+        if deadline:
+            action_items.insert(0, f"Handle this notice by {deadline}.")
+        elif not action_items:
+            action_items.append("Review the notice for required actions.")
+        warning = "Important date detected; confirm it before relying on the reminder." if deadline or key_dates else "No clear deadline was detected."
+        urgency = "high" if self._has_urgent_language(text) else ("medium" if deadline else "low")
+        summary = self._direct_text_summary(text, document.title, profile="education_notice")
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=action_items[:5],
+            warnings=[warning] if warning else [],
+            key_dates=self._dedupe(([deadline] if deadline else []) + key_dates),
+            urgency_level=urgency,
+            follow_up_required=bool(deadline or action_items),
+            workflow_metadata={
+                "notice": {
+                    "deadline": deadline,
+                    "notice_type_hint": self._notice_type_hint(text),
+                    "actionable_summary": summary,
+                }
+            },
+        )
+
+    def _meeting_notice(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        meeting_date = self._date_near_label(text, ["date", "meeting date", "scheduled for"])
+        time_line = self._first_matching_line(text, ["am", "pm", "time", "starts at"])
+        location = self._line_after_label(text, ["location", "room", "where"]) or self._first_matching_line(text, ["room", "building", "zoom", "teams"])
+        purpose = self._first_matching_line(text, ["agenda", "purpose", "topic", "meeting"])
+        summary = self._sentence([purpose or document.title, meeting_date, location])
+        actions = self._action_lines(text) or ["Review the notice for attendance or preparation details."]
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, document.title, profile="meeting_notice"),
+            action_items=actions[:5],
+            warnings=[] if meeting_date else ["Meeting date or time was not clearly detected."],
+            key_dates=self._dedupe(([meeting_date] if meeting_date else []) + self._key_dates(document, text)),
+            urgency_level="medium" if meeting_date else "low",
+            follow_up_required=True,
+            workflow_metadata={
+                "meeting_notice": {
+                    "meeting_date": meeting_date,
+                    "time_hint": time_line,
+                    "location": location,
+                    "purpose": purpose,
+                }
+            },
+        )
+
+    def _health(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        provider = document.merchant_name or self._first_meaningful_line(text)
+        event_date = document.extracted_date.isoformat() if document.extracted_date else self._first_date(text)
+        summary = self._sentence([provider, "health-related document", f"dated {event_date}" if event_date else None])
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=["Review before sharing or exporting.", "Keep this document in a privacy-sensitive folder."],
+            warnings=["Sensitive health information may be present."],
+            key_dates=self._dedupe(([event_date] if event_date else []) + self._key_dates(document, text)),
+            urgency_level="medium",
+            follow_up_required=True,
+            workflow_metadata={
+                "health": {
+                    "provider_or_pharmacy": provider,
+                    "visit_or_purchase_date": event_date,
+                    "privacy_sensitive": True,
+                    "claim_summary": summary,
+                }
+            },
+        )
+
+    def _office(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        amount = document.extracted_amount
+        ready = bool(document.merchant_name and document.extracted_date and amount)
+        warnings = [] if ready else ["Some reimbursement fields are missing."]
+        return WorkflowEnrichment(
+            workflow_summary=self._sentence([document.merchant_name, "business expense", self._money(amount)]),
+            action_items=["Export or attach this receipt to a reimbursement report."] if ready else ["Review merchant, date, and amount for reimbursement."],
+            warnings=warnings,
+            key_dates=self._key_dates(document, text),
+            urgency_level="low" if ready else "medium",
+            follow_up_required=not ready,
+            workflow_metadata={
+                "office": {
+                    "reimbursement_ready": ready,
+                    "expense_type_hints": self._expense_type_hints(text),
+                    "business_expense_summary": self._sentence([document.merchant_name, self._money(amount), document.category]),
+                }
+            },
+        )
+
+    def _spend_category(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        item_lines = self._item_lines(text)
+        category_context = self._category_context(text, mode)
+        summary = self._spend_summary(document, mode, category_context)
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=["File this receipt for spending review or export."],
+            warnings=[] if document.extracted_amount else ["Amount is missing; review before expense tracking."],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low" if document.extracted_amount else "medium",
+            follow_up_required=document.extracted_amount is None,
+            workflow_metadata={
+                "spend": {
+                    "merchant_summary": document.merchant_name,
+                    "spending_interpretation": summary,
+                    "item_highlights": item_lines[:5],
+                    "category_spend_note": self._category_spend_note(mode, category_context),
+                    "category_context": category_context,
+                }
+            },
+        )
+
+    def _generic(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        key_dates = self._key_dates(document, text)
+        follow_up = self._has_follow_up_language(text)
+        warnings = [] if document.title else ["Title quality is weak; review the heading."]
+        summary = self._direct_text_summary(text, document.title, profile="generic")
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=["Review for follow-up actions."] if follow_up else [],
+            warnings=warnings,
+            key_dates=key_dates,
+            urgency_level="medium" if follow_up else "low",
+            follow_up_required=follow_up,
+            workflow_metadata={
+                "generic": {
+                    "heading_quality": "usable" if document.title else "weak",
+                    "key_entities": self._key_entities(text),
+                    "follow_up_hint": follow_up,
+                }
+            },
+        )
+
+    def _syllabus(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        course_title = self._course_title(document, text)
+        course_code = self._course_code(text)
+        semester = self._semester(text)
+        instructor = self._line_after_label(text, ["instructor", "professor", "faculty"])
+        materials = self._matching_lines(text, ["required materials", "textbook", "materials", "required reading"])
+        policies = self._matching_lines(text, ["attendance", "grading", "late work", "policy", "communication"])
+        exam_dates = self._matching_lines(text, ["exam", "midterm", "final", "quiz"])
+        communication_guidance = self._matching_lines(text, ["office hours", "email", "communication", "contact"])
+        summary = self._sentence([course_title, course_code, semester, instructor])
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, course_title, profile="syllabus"),
+            action_items=self._dedupe(materials[:2] + policies[:2] + exam_dates[:1]) or ["Review course materials and key policies."],
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=False,
+            workflow_metadata={
+                "syllabus": {
+                    "document_subtype": "syllabus",
+                    "course_title": course_title,
+                    "course_code": course_code,
+                    "semester": semester,
+                    "instructor": instructor,
+                    "required_materials": materials[:5],
+                    "key_policies": policies[:5],
+                    "exam_dates": exam_dates[:5],
+                    "communication_guidance": communication_guidance[:5],
+                }
+            },
+        )
+
+    def _presentation_guide(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        purpose = self._line_after_label(text, ["purpose", "goal", "objective"]) or self._first_matching_line(text, ["presentation", "talk", "speaker"])
+        audience = self._line_after_label(text, ["audience", "for", "target audience"])
+        slide_guidance = self._matching_lines(text, ["slide", "opening", "closing", "transition"])
+        speaking_notes = self._matching_lines(text, ["speaking note", "speaker note", "talk track", "say", "emphasize"])
+        rehearsal = self._matching_lines(text, ["rehearse", "practice", "timing", "prepare"])
+        summary = self._sentence([purpose or document.title, audience, "presentation guide"])
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, document.title, profile="presentation_guide"),
+            action_items=self._dedupe(rehearsal[:3] + slide_guidance[:2]) or ["Review slide flow and rehearse delivery."],
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=False,
+            workflow_metadata={
+                "guide": {
+                    "document_subtype": "presentation_guide",
+                    "purpose": purpose,
+                    "audience": audience,
+                    "slide_guidance": slide_guidance[:6],
+                    "speaking_notes": speaking_notes[:6],
+                    "preparation_actions": rehearsal[:5],
+                }
+            },
+        )
+
+    def _resume_profile(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        person_name = self._resume_person_name(document, text)
+        education = self._resume_section_lines(text, ["education"], ["experience", "projects", "skills", "technical skills"])
+        experience = self._resume_section_lines(text, ["experience"], ["education", "projects", "skills", "technical skills"])
+        projects = self._resume_section_lines(text, ["projects"], ["education", "experience", "skills", "technical skills"])
+        skills = self._resume_section_lines(text, ["skills", "technical skills"], ["education", "experience", "projects"])
+        graduation = self._first_matching_line(text, ["graduation", "expected", "class of", "202", "2026", "2027"])
+        gpa = self._first_matching_line(text, ["gpa"])
+        links = self._contact_links(text)
+        summary = self._sentence([person_name, self._resume_degree(education), graduation, "resume profile"])
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, document.title, profile="resume_profile"),
+            action_items=["Review education, experience, projects, and skills for completeness."],
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=False,
+            workflow_metadata={
+                "resume": {
+                    "person_name": person_name,
+                    "education": education[:5],
+                    "degree": self._resume_degree(education),
+                    "graduation": graduation,
+                    "gpa": gpa,
+                    "work_experience": experience[:6],
+                    "projects": projects[:6],
+                    "technical_skills": skills[:8],
+                    "contact_links": links,
+                }
+            },
+        )
+
+    def _profile_record(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        facts = self._profile_facts(text)
+        title = self._clean_text_fragment(document.title) or "Profile Note"
+        fact_overview = self._profile_fact_overview(facts)
+        summary = (
+            f"Profile-like text containing {fact_overview}."
+            if fact_overview
+            else self._direct_text_summary(text, title, profile="profile_record")
+        )
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=[],
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=False,
+            workflow_metadata={
+                "profile": {
+                    "identity_facts": facts[:8],
+                    "profile_title": title,
+                    "profile_type_hint": self._profile_type_hint(text),
+                }
+            },
+        )
+
+    def _receipt_spend_summary(self, document: Document, text: str) -> str:
+        merchant = self._merchant_display(document) or "Unknown merchant"
+        amount = self._money(document.extracted_amount) or "unknown amount"
+        category = (document.category or "uncategorized").replace("_", " ")
+        context = self._category_context(text, document.category or "")
+        context_label = self._context_label(context)
+        if context.get("subtype") == "repair_service":
+            return f"Repair-service receipt from {merchant} totaling {amount} with parts and labor charges."
+        category_phrase = f"{category}"
+        if context_label:
+            category_phrase = f"{category}, likely {context_label}"
+        return f"{merchant} receipt for {amount}, categorized as {category_phrase}."
+
+    def _merchant_confidence(self, document: Document) -> str:
+        if document.merchant_name and document.extracted_amount and document.extracted_date:
+            return "high"
+        if document.merchant_name:
+            return "medium"
+        return "low"
+
+    def _expected_total(self, document: Document) -> Decimal | None:
+        if document.subtotal is None or document.tax is None:
+            return None
+        return (document.subtotal + document.tax).quantize(Decimal("0.01"))
+
+    def _item_lines(self, text: str) -> list[str]:
+        descriptive_lines = []
+        fallback_lines = []
+        for line in text.splitlines():
+            cleaned = self._clean_item_line(line)
+            if not cleaned:
+                continue
+            if re.search(r"\b(total|subtotal|tax|balance|amount due|visa|mastercard|cash|change)\b", cleaned, re.IGNORECASE):
+                continue
+            if re.search(r"\d+\.\d{2}\b", cleaned) and len(cleaned) <= 120:
+                fallback_lines.append(cleaned)
+                if self._is_descriptive_item_line(cleaned):
+                    descriptive_lines.append(cleaned)
+        preferred = descriptive_lines or fallback_lines
+        return self._dedupe(preferred)
+
+    def _key_dates(self, document: Document, text: str) -> list[str]:
+        dates = []
+        if document.extracted_date:
+            dates.append(document.extracted_date.isoformat())
+        dates.extend(self._date_candidates(text))
+        return self._normalize_date_list(dates)
+
+    def _first_date(self, text: str) -> str | None:
+        dates = self._key_dates(_DateOnlyDocument(), text)
+        return dates[0] if dates else None
+
+    def _date_near_label(self, text: str, labels: list[str]) -> str | None:
+        for line in text.splitlines():
+            lowered = line.lower().replace("_", " ")
+            if any(label in lowered for label in labels):
+                dates = self._date_candidates(line)
+                if dates:
+                    return self._normalize_date_string(dates[0]) or dates[0]
+        return None
+
+    def _amount_near_label(self, text: str, labels: list[str]) -> Decimal | None:
+        for line in text.splitlines():
+            lowered = line.lower().replace("_", " ")
+            if any(label in lowered for label in labels):
+                matches = re.findall(r"([0-9]{1,6}(?:,[0-9]{3})*(?:\.[0-9]{2}))", line)
+                if matches:
+                    return Decimal(matches[-1].replace(",", ""))
+        return None
+
+    def _billing_period(self, text: str) -> str | None:
+        match = re.search(
+            r"\b(?:billing period|service period|period)\s*:?\s*([A-Za-z0-9, /.-]{6,60})",
+            text,
+            re.IGNORECASE,
+        )
+        return match.group(1).strip() if match else None
+
+    def _action_lines(self, text: str) -> list[str]:
+        actions = []
+        for line in text.splitlines():
+            if re.search(r"\b(please|must|required|bring|submit|pay|register|attend|contact|rsvp)\b", line, re.IGNORECASE):
+                actions.append(re.sub(r"\s+", " ", line).strip())
+        return self._dedupe(actions)
+
+    def _notice_type_hint(self, text: str) -> str:
+        lowered = text.lower()
+        if self._looks_like_syllabus(text):
+            return "syllabus"
+        if self._looks_like_presentation_guide(text):
+            return "presentation_guide"
+        if "meeting" in lowered:
+            return "meeting"
+        if "payment" in lowered or "tuition" in lowered or "fee" in lowered:
+            return "payment"
+        if "deadline" in lowered or "submit" in lowered:
+            return "submission"
+        if "event" in lowered or "night" in lowered:
+            return "event"
+        return "general_notice"
+
+    def _expense_type_hints(self, text: str) -> list[str]:
+        hints = []
+        lowered = text.lower()
+        for hint in ["travel", "meal", "supplies", "software", "printing", "parking"]:
+            if hint in lowered:
+                hints.append(hint)
+        return hints or ["general_business"]
+
+    def _key_entities(self, text: str) -> list[str]:
+        candidates = []
+        for line in text.splitlines()[:12]:
+            cleaned = re.sub(r"[^A-Za-z0-9 &.,'-]", "", line).strip()
+            if 3 <= len(cleaned) <= 80 and not re.search(r"\d{2,}", cleaned):
+                candidates.append(cleaned)
+        return self._dedupe(candidates[:5])
+
+    def _first_meaningful_line(self, text: str) -> str | None:
+        for line in text.splitlines():
+            cleaned = re.sub(r"\s+", " ", line).strip()
+            if len(cleaned) >= 3:
+                return cleaned[:120]
+        return None
+
+    def _summary_from_text(self, text: str) -> str | None:
+        return self._direct_text_summary(text, None, profile="generic")
+
+    def _apply_interpretation_hints(self, result: WorkflowEnrichment, interpretation: CategoryInterpretation) -> WorkflowEnrichment:
+        if interpretation.summary_hint and (
+            interpretation.ai_assisted or not result.workflow_summary or self._summary_is_generic(result.workflow_summary)
+        ):
+            result.workflow_summary = interpretation.summary_hint
+
+        hint_actions = interpretation.workflow_hints.get("action_items", [])
+        hint_warnings = interpretation.workflow_hints.get("warnings", [])
+        if isinstance(hint_actions, list):
+            result.action_items.extend(str(item) for item in hint_actions if item)
+        if isinstance(hint_warnings, list):
+            result.warnings.extend(str(item) for item in hint_warnings if item)
+
+        urgency = interpretation.workflow_hints.get("urgency_level")
+        if urgency in {"low", "medium", "high"}:
+            result.urgency_level = self._max_urgency(result.urgency_level, urgency)
+        if interpretation.workflow_hints.get("follow_up_required"):
+            result.follow_up_required = True
+        return result
+
+    def _summary_is_generic(self, summary: str) -> bool:
+        lowered = summary.lower()
+        return (
+            len(summary.split()) > 30
+            or lowered.startswith("receipt with merchant")
+            or lowered.startswith("profile-like text containing identity")
+            or ";" in summary
+        )
+
+    def _max_urgency(self, current: str, new: str) -> str:
+        scale = {"low": 1, "medium": 2, "high": 3}
+        return new if scale.get(new, 1) > scale.get(current, 1) else current
+
+    def _has_urgent_language(self, text: str) -> bool:
+        return re.search(r"\b(overdue|urgent|immediately|final notice|past due|due now)\b", text, re.IGNORECASE) is not None
+
+    def _has_follow_up_language(self, text: str) -> bool:
+        return re.search(r"\b(follow up|respond|reply|sign|submit|required|deadline|due)\b", text, re.IGNORECASE) is not None
+
+    def _money(self, amount: Decimal | None) -> str | None:
+        return f"${amount}" if amount is not None else None
+
+    def _sentence(self, parts: list[str | None]) -> str | None:
+        values = [self._clean_text_fragment(part) for part in parts]
+        values = [part for part in values if part]
+        if not values:
+            return None
+        sentence = ", ".join(values)
+        return sentence[:500]
+
+    def _spend_summary(self, document: Document, mode: str, category_context: dict[str, Any]) -> str:
+        merchant = self._merchant_display(document) or "Purchase"
+        amount = self._money(document.extracted_amount)
+        category = mode.replace("_", " ")
+        context_label = self._context_label(category_context)
+        if amount and context_label:
+            return f"{merchant} purchase for {amount}, categorized as {category} with {context_label} context."
+        if amount:
+            return f"{merchant} purchase for {amount}, categorized as {category}."
+        if context_label:
+            return f"{merchant} purchase categorized as {category} with {context_label} context."
+        return f"{merchant} purchase categorized as {category}."
+
+    def _category_spend_note(self, mode: str, category_context: dict[str, Any]) -> str:
+        category = mode.replace("_", " ")
+        context_label = self._context_label(category_context)
+        if context_label:
+            confidence = category_context.get("confidence", "low")
+            return f"Classified as {category}; extracted text also suggests {context_label} context ({confidence} confidence)."
+        return f"Classified as {category} based on extracted text and category signals."
+
+    def _category_context(self, text: str, mode: str) -> dict[str, Any]:
+        lowered = text.lower()
+        context_rules: list[tuple[str, list[str]]] = [
+            ("repair_service", ["repair", "service", "labor", "parts", "maintenance", "technician", "brake", "cable", "pedal"]),
+            ("pet_supplies", ["pet", "pets", "dog", "cat", "puppy", "kitten", "litter", "leash", "collar", "kibble", "purina", "friskies"]),
+            ("grocery_style", ["grocery", "produce", "banana", "milk", "bread", "eggs", "deli", "meat", "vegetable", "fruit"]),
+            ("pharmacy_health", ["pharmacy", "rx", "prescription", "medication", "clinic", "vitamin"]),
+            ("home_improvement", ["hardware", "paint", "lumber", "tool", "garden", "plumbing", "electrical"]),
+            ("electronics", ["electronics", "charger", "cable", "battery", "phone", "adapter", "usb"]),
+            ("apparel", ["shirt", "pants", "shoe", "jacket", "apparel", "clothing"]),
+            ("office_supplies", ["office", "paper", "staples", "ink", "toner", "folder", "notebook"]),
+            ("fuel_transport", ["fuel", "gasoline", "diesel", "parking", "toll", "uber", "lyft", "taxi"]),
+            ("meal_or_cafe", ["coffee", "latte", "cafe", "restaurant", "sandwich", "pizza", "burger", "meal"]),
+        ]
+        matches: list[tuple[str, list[str]]] = []
+        for context, keywords in context_rules:
+            signals = [keyword for keyword in keywords if re.search(rf"\b{re.escape(keyword)}\b", lowered)]
+            if signals:
+                matches.append((context, signals[:5]))
+
+        if not matches:
+            return {"subtype": None, "label": None, "confidence": "low", "signals": []}
+
+        subtype, signals = max(matches, key=lambda match: len(match[1]))
+        confidence = "medium" if len(signals) >= 2 or mode in {"retail", "groceries", "food_drink", "transport", "health", "office", "repair_service"} else "low"
+        return {
+            "subtype": subtype,
+            "label": subtype.replace("_", " "),
+            "confidence": confidence,
+            "signals": signals,
+        }
+
+    def _content_profile(self, document: Document, text: str, mode: str) -> str:
+        if self._looks_like_syllabus(text):
+            return "syllabus"
+        if self._looks_like_resume_profile(text):
+            return "resume_profile"
+        if self._looks_like_presentation_guide(text):
+            return "presentation_guide"
+        if self._looks_like_meeting_notice(text):
+            return "meeting_notice"
+        if self._looks_like_profile_record(text):
+            return "profile_record"
+        return "standard"
+
+    def _looks_like_syllabus(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["syllabus", "course code", "semester", "instructor", "office hours", "grading", "required materials"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _looks_like_presentation_guide(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["presentation", "slide", "audience", "speaker", "rehearse", "talk track", "speaking notes"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _looks_like_resume_profile(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["education", "experience", "projects", "skills", "technical skills", "gpa", "linkedin", "github"]
+        return sum(signal in lowered for signal in signals) >= 3
+
+    def _looks_like_meeting_notice(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["meeting", "agenda", "location", "room", "join us", "attend", "minutes"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _looks_like_profile_record(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["name:", "id:", "major:", "age:", "student id", "dob:", "department:"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _context_label(self, category_context: dict[str, Any]) -> str | None:
+        label = category_context.get("label")
+        return str(label) if label else None
+
+    def _merchant_display(self, document: Document) -> str | None:
+        for value in [document.merchant_name, document.title]:
+            cleaned = self._clean_text_fragment(value)
+            if cleaned:
+                return cleaned
+        return None
+
+    def _clean_text_fragment(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = re.sub(r"\s+", " ", str(value)).strip()
+        cleaned = re.sub(r"\s*[-–—]+\s*[.,:;]*\s*$", "", cleaned)
+        cleaned = re.sub(r"(?:\s+[.,:;|%]+)+$", "", cleaned)
+        cleaned = re.sub(r"\s+[-–—]\s+[.,:;]+$", "", cleaned)
+        cleaned = cleaned.strip(" \t\r\n-–—|")
+        if not cleaned or re.fullmatch(r"[.,:;/%\\-]+", cleaned):
+            return None
+        return cleaned[:160]
+
+    def _direct_text_summary(self, text: str, title: str | None, profile: str = "generic") -> str | None:
+        lines = self._unique_content_lines(text)
+        if profile == "profile_record":
+            facts = self._profile_facts(text)
+            if facts:
+                return ", ".join(facts[:5])
+        if profile == "syllabus":
+            summary = self._sentence([self._course_title_text(text) or title, self._course_code(text), self._semester(text), self._line_after_label(text, ["instructor", "professor"])])
+            if summary:
+                return summary
+        if profile == "presentation_guide":
+            summary = self._sentence([
+                title or self._first_matching_line(text, ["presentation", "talk"]),
+                self._line_after_label(text, ["purpose", "goal", "objective"]),
+                self._line_after_label(text, ["audience", "target audience"]),
+            ])
+            if summary:
+                return summary
+        fact_lines = self._fact_like_lines(lines)
+        if fact_lines:
+            return "; ".join(fact_lines[:4])[:500]
+        summary_lines = [line for line in lines if not self._is_placeholder_title(line)]
+        if title and title not in summary_lines[:2]:
+            summary_lines.insert(0, title)
+        return " ".join(summary_lines[:4])[:500] if summary_lines else None
+
+    def _clean_item_line(self, line: str) -> str:
+        cleaned = re.sub(r"\s+", " ", line).strip()
+        cleaned = cleaned.replace("�", "")
+        cleaned = re.sub(r"\s+([.,])", r"\1", cleaned)
+        cleaned = re.sub(r"([A-Za-z])\s+%", r"\1", cleaned)
+        cleaned = self._strip_amount_suffix_noise(cleaned)
+        cleaned = self._strip_embedded_item_codes(cleaned)
+        cleaned = re.sub(r"\s+[%|]+$", "", cleaned)
+        cleaned = re.sub(r"(?<=\d\.\d{2})\s+[A-Z]{1,3}$", "", cleaned)
+        cleaned = re.sub(r"\s+\b(?:KX|XX|XXX)\b(?=\s|$)", "", cleaned, flags=re.IGNORECASE)
+        cleaned = self._strip_amount_suffix_noise(cleaned)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" -|")
+        return cleaned
+
+    def _strip_amount_suffix_noise(self, line: str) -> str:
+        """Remove OCR junk glued to receipt amounts without touching product text."""
+        return re.sub(
+            r"(?P<amount>\b\d{1,6}(?:,\d{3})*\.\d{2})(?:\s*(?:[%|;:*!#~^`]+|[.,]+))(?=\s|$)",
+            r"\g<amount>",
+            line,
+        )
+
+    def _strip_embedded_item_codes(self, line: str) -> str:
+        if not re.search(r"\b\d{1,6}(?:,\d{3})*\.\d{2}\b", line):
+            return line
+        alpha_word_count = len(re.findall(r"\b[A-Za-z][A-Za-z/&'-]{1,}\b", line))
+        if alpha_word_count < 2:
+            return line
+        cleaned = re.sub(r"\b\d{8,14}\b", "", line)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+        return cleaned or line
+
+    def _is_descriptive_item_line(self, line: str) -> bool:
+        alpha_words = re.findall(r"\b[A-Za-z][A-Za-z/&'-]{1,}\b", line)
+        digit_blobs = re.findall(r"\b\d{4,}\b", line)
+        service_terms = ["repair", "service", "labor", "parts", "maintenance", "brake", "cable", "pedal"]
+        has_service_term = any(term in line.lower() for term in service_terms)
+        return (len(alpha_words) >= 2 and len(digit_blobs) <= 1) or has_service_term
+
+    def _date_candidates(self, text: str) -> list[str]:
+        pattern = (
+            r"\b(?:"
+            r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|"
+            r"\d{4}-\d{1,2}-\d{1,2}|"
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.? \d{1,2}, \d{4}"
+            r")\b"
+        )
+        return re.findall(pattern, text, flags=re.IGNORECASE)
+
+    def _normalize_date_list(self, values: list[str | None]) -> list[str]:
+        result = []
+        seen = set()
+        for value in values:
+            normalized = self._normalize_date_string(value)
+            if not normalized:
+                continue
+            if normalized not in seen:
+                seen.add(normalized)
+                result.append(normalized)
+        return result
+
+    def _normalize_date_string(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        cleaned = re.sub(r"\s+", " ", value.strip().rstrip(".,"))
+        formats = [
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%m/%d/%y",
+            "%m-%d-%Y",
+            "%m-%d-%y",
+            "%B %d, %Y",
+            "%b %d, %Y",
+            "%b. %d, %Y",
+        ]
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(cleaned, fmt).date()
+                return parsed.isoformat()
+            except ValueError:
+                continue
+        return None
+
+    def _dedupe(self, values: list[str | None]) -> list[str]:
+        result = []
+        seen = set()
+        for value in values:
+            if not value:
+                continue
+            cleaned = re.sub(r"\s+", " ", value).strip()
+            key = cleaned.casefold()
+            if cleaned and key not in seen:
+                seen.add(key)
+                result.append(cleaned)
+        return result
+
+    def _unique_content_lines(self, text: str) -> list[str]:
+        lines = []
+        for line in text.splitlines():
+            cleaned = re.sub(r"\s+", " ", line).strip()
+            if not cleaned or self._is_placeholder_title(cleaned):
+                continue
+            lines.append(cleaned)
+        return self._dedupe(lines)
+
+    def _fact_like_lines(self, lines: list[str]) -> list[str]:
+        return [line for line in lines if ":" in line and len(line) <= 120][:8]
+
+    def _profile_facts(self, text: str) -> list[str]:
+        wanted = {"name", "id", "student id", "major", "age", "dob", "department", "role"}
+        facts = []
+        for line in self._unique_content_lines(text):
+            if ":" not in line:
+                continue
+            key, value = [part.strip() for part in line.split(":", 1)]
+            if key.lower() in wanted and value:
+                facts.append(f"{key}: {value}")
+        return self._dedupe(facts)
+
+    def _profile_fact_overview(self, facts: list[str]) -> str | None:
+        if not facts:
+            return None
+        labels = []
+        for fact in facts[:5]:
+            key = fact.split(":", 1)[0].strip().lower()
+            labels.append(key)
+        if len(labels) == 1:
+            readable = labels[0]
+        elif len(labels) == 2:
+            readable = " and ".join(labels)
+        else:
+            readable = ", ".join(labels[:-1]) + f", and {labels[-1]}"
+        return readable
+
+    def _profile_type_hint(self, text: str) -> str:
+        lowered = text.lower()
+        if any(term in lowered for term in ["major:", "student id", "department:"]):
+            return "education_record"
+        return "profile_record"
+
+    def _resume_person_name(self, document: Document, text: str) -> str | None:
+        title = self._clean_text_fragment(document.title)
+        if title and "resume" not in title.lower():
+            return title
+        for line in self._unique_content_lines(text)[:5]:
+            if 3 <= len(line) <= 60 and not re.search(r"[@:/]|linkedin|github|resume", line, re.IGNORECASE):
+                words = line.split()
+                if 1 < len(words) <= 4:
+                    return line
+        return title
+
+    def _resume_degree(self, education_lines: list[str]) -> str | None:
+        for line in education_lines:
+            match = re.search(r"(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|Bachelor(?:'s)?|Master(?:'s)?)", line, re.IGNORECASE)
+            if match:
+                return match.group(0)
+        return None
+
+    def _contact_links(self, text: str) -> list[str]:
+        return re.findall(r"(https?://\S+|www\.\S+|[\w.+-]+@[\w-]+\.[\w.-]+|linkedin\.com/\S+|github\.com/\S+)", text, flags=re.IGNORECASE)[:6]
+
+    def _resume_section_lines(self, text: str, headers: list[str], stop_headers: list[str]) -> list[str]:
+        lines = self._unique_content_lines(text)
+        results: list[str] = []
+        capturing = False
+        for line in lines:
+            lowered = line.lower().rstrip(":")
+            if any(lowered == header for header in headers):
+                capturing = True
+                continue
+            if capturing and any(lowered == header for header in stop_headers):
+                break
+            if capturing:
+                results.append(line)
+        return results[:8]
+
+    def _course_title(self, document: Document, text: str) -> str | None:
+        return self._course_title_text(text) or self._clean_text_fragment(document.title)
+
+    def _course_title_text(self, text: str) -> str | None:
+        lines = self._unique_content_lines(text)[:10]
+        for index, line in enumerate(lines):
+            lowered = line.lower()
+            if lowered == "syllabus" and index > 0:
+                previous = lines[index - 1]
+                if previous and not self._is_placeholder_title(previous):
+                    return f"{previous} Syllabus"
+            if any(keyword in lowered for keyword in ["syllabus", "course", "seminar", "introduction", "guide"]):
+                return line
+            if self._course_code(line):
+                continue
+        return None
+
+    def _course_code(self, text: str) -> str | None:
+        match = re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", text)
+        return match.group(0) if match else None
+
+    def _semester(self, text: str) -> str | None:
+        match = re.search(r"\b(?:spring|summer|fall|winter)\s+\d{4}\b", text, re.IGNORECASE)
+        return match.group(0) if match else None
+
+    def _line_after_label(self, text: str, labels: list[str]) -> str | None:
+        for line in self._unique_content_lines(text):
+            lowered = line.lower().replace("_", " ")
+            for label in labels:
+                if lowered.startswith(f"{label}:") or lowered.startswith(f"{label} -"):
+                    return line.split(":", 1)[-1].strip() if ":" in line else re.sub(rf"^{re.escape(label)}\s*-\s*", "", line, flags=re.IGNORECASE)
+        return None
+
+    def _matching_lines(self, text: str, keywords: list[str]) -> list[str]:
+        matches = []
+        for line in self._unique_content_lines(text):
+            lowered = line.lower()
+            if any(keyword in lowered for keyword in keywords):
+                matches.append(line)
+        return self._dedupe(matches)
+
+    def _first_matching_line(self, text: str, keywords: list[str]) -> str | None:
+        matches = self._matching_lines(text, keywords)
+        return matches[0] if matches else None
+
+    def _is_placeholder_title(self, value: str) -> bool:
+        lowered = value.lower()
+        return bool(re.fullmatch(r"(page|slide)\s+\d+", lowered))
+
+
+class _DateOnlyDocument:
+    extracted_date: date | None = None

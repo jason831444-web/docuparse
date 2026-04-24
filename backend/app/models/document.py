@@ -20,7 +20,10 @@ class DocumentType(str, enum.Enum):
 
 class ProcessingStatus(str, enum.Enum):
     uploaded = "uploaded"
+    queued = "queued"
     processing = "processing"
+    ready = "ready"
+    needs_review = "needs_review"
     completed = "completed"
     failed = "failed"
 
@@ -32,6 +35,9 @@ class Document(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_file_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    extraction_method: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    ingestion_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     document_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType, name="document_type"), default=DocumentType.other)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -54,6 +60,13 @@ class Document(Base):
     provider_chain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     merge_strategy: Mapped[str | None] = mapped_column(String(120), nullable=True)
     field_sources: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    workflow_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    action_items: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    key_dates: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    urgency_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    follow_up_required: Mapped[bool] = mapped_column(default=False, nullable=False)
+    workflow_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     processing_status: Mapped[ProcessingStatus] = mapped_column(
         Enum(ProcessingStatus, name="processing_status"),
         default=ProcessingStatus.uploaded,

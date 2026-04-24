@@ -16,6 +16,8 @@ services:
       retries: 10
 
   backend:
+    profiles:
+      - backend
     build:
       context: ./backend
     environment:
@@ -23,6 +25,9 @@ services:
       UPLOAD_DIR: /app/uploads
       BACKEND_BASE_URL: http://localhost:8001
       CORS_ORIGINS: '["http://localhost:3001"]'
+      STORAGE_BACKEND: local
+      PROCESSING_MODE: inline
+      QUEUE_BACKEND: local
       AI_PRIMARY_PROVIDER: paddleocr_vl
       AI_SECONDARY_PROVIDER: qwen2_5_vl
       AI_ENABLE_SECOND_PASS: "true"
@@ -47,8 +52,6 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8001/api
     ports:
       - "3001:3000"
-    depends_on:
-      - backend
 
 volumes:
   postgres_data:

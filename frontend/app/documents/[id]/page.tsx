@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { AlertTriangle, Bot, Download, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Bot, Download, FileText, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/status-badge";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { WorkflowPanel } from "@/components/workflow-panel";
 import { api } from "@/lib/api";
 import type { DocumentRecord, DocumentType, DocumentUpdate } from "@/types/document";
 
@@ -116,6 +117,7 @@ export default function DocumentDetailPage() {
   if (!document) {
     return <main className="shell py-8"><Card><CardContent className="p-10">Document not found.</CardContent></Card></main>;
   }
+  const isImage = document.mime_type.startsWith("image/");
 
   return (
     <main className="shell py-8">
@@ -145,21 +147,30 @@ export default function DocumentDetailPage() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
         <section className="space-y-6">
           <Card>
-            <CardHeader><CardTitle>Image preview</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{isImage ? "Image preview" : "File preview"}</CardTitle></CardHeader>
             <CardContent>
-              <div className="relative h-[620px] max-h-[70vh] w-full rounded-md border bg-white">
-                <Image
-                  src={document.file_url}
-                  alt={document.original_filename}
-                  fill
-                  unoptimized
-                  className="object-contain"
-                />
-              </div>
+              {isImage ? (
+                <div className="relative h-[620px] max-h-[70vh] w-full rounded-md border bg-white">
+                  <Image
+                    src={document.file_url}
+                    alt={document.original_filename}
+                    fill
+                    unoptimized
+                    className="object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex min-h-56 flex-col items-center justify-center rounded-md border bg-white p-6 text-center">
+                  <FileText className="mb-3 size-10 text-primary" />
+                  <p className="font-semibold">{document.original_filename}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{document.mime_type}</p>
+                  <Button asChild variant="outline" className="mt-4"><a href={document.file_url}>Open original</a></Button>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Raw OCR text</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Extracted text</CardTitle></CardHeader>
             <CardContent>
               <Textarea className="min-h-96 font-mono text-xs" {...form.register("raw_text")} />
             </CardContent>
@@ -167,6 +178,7 @@ export default function DocumentDetailPage() {
         </section>
 
         <section className="space-y-6">
+          <WorkflowPanel document={document} />
           <Card className={document.review_required ? "border-amber-300 bg-amber-50/40" : ""}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -199,6 +211,22 @@ export default function DocumentDetailPage() {
                 <div className="rounded-md border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Second pass</p>
                   <p className="mt-1 font-semibold">{document.refinement_provider || "Not used"}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">File type</p>
+                  <p className="mt-1 font-semibold uppercase">{document.source_file_type || "unknown"}</p>
+                </div>
+                <div className="rounded-md border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Extraction method</p>
+                  <p className="mt-1 break-words font-semibold">{document.extraction_method || "Unavailable"}</p>
+                </div>
+                <div className="rounded-md border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Route</p>
+                  <p className="mt-1 break-words font-semibold">
+                    {typeof document.ingestion_metadata?.route === "string" ? document.ingestion_metadata.route : "Unavailable"}
+                  </p>
                 </div>
               </div>
               <div className="rounded-md border bg-white p-3">

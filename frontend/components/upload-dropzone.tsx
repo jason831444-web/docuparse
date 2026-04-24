@@ -9,6 +9,56 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+const acceptedTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/bmp",
+  "image/tiff",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+  "application/xml",
+  "text/xml",
+  "text/html",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+].join(",");
+
+const acceptedExtensions = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".bmp",
+  ".tif",
+  ".tiff",
+  ".pdf",
+  ".txt",
+  ".md",
+  ".csv",
+  ".json",
+  ".xml",
+  ".html",
+  ".htm",
+  ".docx",
+  ".xlsx",
+  ".pptx",
+  ".doc",
+  ".xls",
+  ".ppt",
+  ".rtf",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".epub",
+  ".eml",
+  ".msg",
+].join(",");
+
 export function UploadDropzone() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -18,10 +68,6 @@ export function UploadDropzone() {
   async function handleFiles(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
-      toast.error("Upload a JPG, JPEG, or PNG image.");
-      return;
-    }
     setUploading(true);
     try {
       const document = await api.upload(file);
@@ -56,20 +102,22 @@ export function UploadDropzone() {
       </div>
       <h2 className="text-xl font-semibold">Upload a receipt, notice, or note</h2>
       <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-        DocuParse stores the image, runs Tesseract OCR, extracts useful fields, and opens the result for review.
+        DocuParse routes images, PDFs, Office files, and structured text through the right extraction path, then opens the result for review.
       </p>
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png"
+        accept={`${acceptedTypes},${acceptedExtensions}`}
         className="hidden"
         onChange={(event) => void handleFiles(event.target.files)}
       />
       <Button className="mt-5" onClick={() => inputRef.current?.click()} disabled={uploading}>
         {uploading ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
-        Select image
+        Select document
       </Button>
-      <p className="mt-3 text-xs text-muted-foreground">Accepted formats: JPG, JPEG, PNG</p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Images, PDF, TXT, MD, CSV, JSON, XML, HTML, DOCX, XLSX, PPTX, and partial legacy formats
+      </p>
     </div>
   );
 }

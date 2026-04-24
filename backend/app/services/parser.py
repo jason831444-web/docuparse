@@ -17,6 +17,10 @@ DATE_PATTERNS = [
 ]
 
 CATEGORY_KEYWORDS = {
+    "profile_record": ["name:", "id:", "student id", "major:", "age:", "department:", "dob:"],
+    "course_guide": ["syllabus", "course code", "office hours", "grading", "required materials", "instructor"],
+    "presentation_guide": ["presentation guide", "speaker notes", "talk track", "slide guidance", "rehearse"],
+    "repair_service": ["repair", "service work", "labor", "parts", "maintenance", "technician", "brake"],
     "groceries": ["grocery", "market", "foods", "supermarket", "trader", "whole foods"],
     "dining": ["restaurant", "cafe", "coffee", "pizza", "burger", "bar", "bakery"],
     "transportation": ["gas", "fuel", "uber", "lyft", "parking", "metro", "taxi"],
@@ -95,12 +99,37 @@ class DocumentParser:
         return None
 
     def _guess_title(self, lines: list[str], doc_type: DocumentType, filename: str) -> str:
+        text = "\n".join(lines)
         if doc_type == DocumentType.receipt:
             merchant = self._guess_merchant(lines)
             return f"{merchant} receipt" if merchant else "Receipt"
+        if self._looks_like_profile_record(text):
+            return "Profile Note"
+        if self._looks_like_syllabus(text):
+            for line in lines[:10]:
+                cleaned = re.sub(r"\s+", " ", line).strip(":- ")
+                if (
+                    4 <= len(cleaned) <= 120
+                    and not self._is_placeholder_title(cleaned)
+                    and any(keyword in cleaned.lower() for keyword in ["syllabus", "course", "seminar", "guide"])
+                ):
+                    return cleaned
+        if self._looks_like_presentation_guide(text):
+            for line in lines[:10]:
+                cleaned = re.sub(r"\s+", " ", line).strip(":- ")
+                if (
+                    4 <= len(cleaned) <= 120
+                    and not self._is_placeholder_title(cleaned)
+                    and any(keyword in cleaned.lower() for keyword in ["presentation", "speaker", "talk", "guide"])
+                ):
+                    return cleaned
         for line in lines[:8]:
             cleaned = re.sub(r"\s+", " ", line).strip(":- ")
-            if 4 <= len(cleaned) <= 100 and not re.search(r"^\d+([./-]\d+)*$", cleaned):
+            if (
+                4 <= len(cleaned) <= 100
+                and not re.search(r"^\d+([./-]\d+)*$", cleaned)
+                and not self._is_placeholder_title(cleaned)
+            ):
                 return cleaned
         return filename.rsplit(".", 1)[0] if filename else "Untitled document"
 
@@ -113,6 +142,12 @@ class DocumentParser:
 
     def _guess_category(self, text: str) -> str | None:
         lowered = text.lower()
+        if self._looks_like_profile_record(text):
+            return "profile_record"
+        if self._looks_like_syllabus(text):
+            return "course_guide"
+        if self._looks_like_presentation_guide(text):
+            return "presentation_guide"
         best: tuple[str | None, int] = (None, 0)
         for category, keywords in CATEGORY_KEYWORDS.items():
             score = sum(100 for keyword in keywords if keyword in lowered)
@@ -128,3 +163,25 @@ class DocumentParser:
         if re.search(r"\b(deadline|due|expires|effective)\b", text, flags=re.IGNORECASE):
             tags.add("time-sensitive")
         return sorted(tags)
+
+    def _is_placeholder_title(self, value: str) -> bool:
+        lowered = value.lower()
+        return bool(
+            re.fullmatch(r"(page|slide)\s+\d+", lowered)
+            or lowered in {"page", "slide", "table of contents", "contents"}
+        )
+
+    def _looks_like_profile_record(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["name:", "id:", "student id", "major:", "age:", "department:", "dob:"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _looks_like_syllabus(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["syllabus", "course code", "semester", "instructor", "office hours", "grading", "required materials"]
+        return sum(signal in lowered for signal in signals) >= 2
+
+    def _looks_like_presentation_guide(self, text: str) -> bool:
+        lowered = text.lower()
+        signals = ["presentation", "slide", "audience", "speaker", "rehearse", "talk track", "speaking notes"]
+        return sum(signal in lowered for signal in signals) >= 2
