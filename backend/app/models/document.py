@@ -24,6 +24,7 @@ class ProcessingStatus(str, enum.Enum):
     processing = "processing"
     ready = "ready"
     needs_review = "needs_review"
+    confirmed = "confirmed"
     completed = "completed"
     failed = "failed"
 
@@ -67,6 +68,7 @@ class Document(Base):
     urgency_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     follow_up_required: Mapped[bool] = mapped_column(default=False, nullable=False)
     workflow_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    is_favorite: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
     processing_status: Mapped[ProcessingStatus] = mapped_column(
         Enum(ProcessingStatus, name="processing_status"),
         default=ProcessingStatus.uploaded,

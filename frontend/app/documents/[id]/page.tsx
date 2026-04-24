@@ -1,10 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { AlertTriangle, Bot, Download, FileText, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Bot,
+  CheckCheck,
+  Download,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Star,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/status-badge";
@@ -15,9 +29,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { api } from "@/lib/api";
+import { documentSummaryDetailed, formatDateTime, primaryCategoryLabel, titleCaseLabel } from "@/lib/utils";
 import type { DocumentRecord, DocumentType, DocumentUpdate } from "@/types/document";
 
 const documentTypes: DocumentType[] = ["receipt", "notice", "document", "memo", "other"];
+const detailTabs = ["original", "extracted", "ai"] as const;
+type DetailTab = (typeof detailTabs)[number];
 
 function toForm(document: DocumentRecord): DocumentUpdate & { tags_text: string } {
   return {
@@ -33,8 +50,32 @@ function toForm(document: DocumentRecord): DocumentUpdate & { tags_text: string 
     category: document.category ?? "",
     tags: document.tags,
     summary: document.summary ?? "",
-    tags_text: document.tags.join(", ")
+    is_favorite: document.is_favorite,
+    tags_text: document.tags.join(", "),
   } as DocumentUpdate & { tags_text: string };
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function readList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function InfoGrid({ items }: { items: Array<[string, string | null | undefined]> }) {
+  const present = items.filter(([, value]) => value);
+  if (!present.length) return null;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {present.map(([label, value]) => (
+        <div key={label} className="rounded-lg border bg-white p-4">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="mt-1 text-sm font-semibold">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function DocumentDetailPage() {
@@ -43,18 +84,21 @@ export default function DocumentDetailPage() {
   const [document, setDocument] = useState<DocumentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>("original");
   const form = useForm<DocumentUpdate & { tags_text: string }>();
+
+  const syncDocument = useCallback((item: DocumentRecord) => {
+    setDocument(item);
+    form.reset(toForm(item));
+  }, [form]);
 
   useEffect(() => {
     api
       .get(params.id)
-      .then((item) => {
-        setDocument(item);
-        form.reset(toForm(item));
-      })
+      .then(syncDocument)
       .catch((error) => toast.error(error instanceof Error ? error.message : "Could not load document"))
       .finally(() => setLoading(false));
-  }, [form, params.id]);
+  }, [params.id, syncDocument]);
 
   async function onSubmit(values: DocumentUpdate & { tags_text: string }) {
     setSaving(true);
@@ -71,12 +115,14 @@ export default function DocumentDetailPage() {
       merchant_name: values.merchant_name || null,
       category: values.category || null,
       summary: values.summary || null,
-      tags: tags_text.split(",").map((tag) => tag.trim()).filter(Boolean)
+      tags: tags_text
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
     };
     try {
       const updated = await api.update(params.id, payload);
-      setDocument(updated);
-      form.reset(toForm(updated));
+      syncDocument(updated);
       toast.success("Document saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save");
@@ -89,9 +135,8 @@ export default function DocumentDetailPage() {
     setSaving(true);
     try {
       const updated = await api.reprocess(params.id);
-      setDocument(updated);
-      form.reset(toForm(updated));
-      toast.success("OCR reprocessed");
+      syncDocument(updated);
+      toast.success("Reprocessing started");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Reprocess failed");
     } finally {
@@ -99,8 +144,44 @@ export default function DocumentDetailPage() {
     }
   }
 
+  async function confirmDocument() {
+    setSaving(true);
+    try {
+      const updated = await api.confirm(params.id);
+      syncDocument(updated);
+      toast.success("Document confirmed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Confirm failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function markNeedsReview() {
+    setSaving(true);
+    try {
+      const updated = await api.markNeedsReview(params.id);
+      syncDocument(updated);
+      toast.success("Moved to needs review");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update review status");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleFavorite() {
+    try {
+      const updated = await api.toggleFavorite(params.id);
+      syncDocument(updated);
+      toast.success(updated.is_favorite ? "Pinned to favorites" : "Removed from favorites");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update favorite");
+    }
+  }
+
   async function remove() {
-    if (!window.confirm("Delete this document and uploaded image?")) return;
+    if (!window.confirm("Delete this document and uploaded file?")) return;
     try {
       await api.remove(params.id);
       toast.success("Document deleted");
@@ -110,32 +191,112 @@ export default function DocumentDetailPage() {
     }
   }
 
+  const categoryInterpretation = useMemo(
+    () => (document?.workflow_metadata?.category_interpretation ?? document?.ingestion_metadata?.category_interpretation ?? null) as Record<string, unknown> | null,
+    [document]
+  );
+
   if (loading) {
-    return <main className="shell py-8"><div className="h-96 animate-pulse rounded-lg bg-muted" /></main>;
+    return (
+      <main className="shell py-8">
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="h-[34rem] animate-pulse rounded-xl bg-muted" />
+          <div className="h-[34rem] animate-pulse rounded-xl bg-muted" />
+        </div>
+      </main>
+    );
   }
 
   if (!document) {
-    return <main className="shell py-8"><Card><CardContent className="p-10">Document not found.</CardContent></Card></main>;
+    return (
+      <main className="shell py-8">
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">Document not found.</CardContent>
+        </Card>
+      </main>
+    );
   }
+
   const isImage = document.mime_type.startsWith("image/");
+  const categoryLabel = primaryCategoryLabel(document);
+  const categoryProfile = readString(categoryInterpretation?.profile);
+  const titleHint = readString(categoryInterpretation?.title_hint);
+  const surfacedFields = readList(categoryInterpretation?.surfaced_fields);
+  const isConfirmed = document.processing_status === "confirmed";
 
   return (
     <main className="shell py-8">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl">
           <div className="mb-3 flex flex-wrap gap-2">
             <StatusBadge status={document.processing_status} />
-            <Badge>{document.document_type}</Badge>
-            {document.category ? <Badge className="bg-accent text-accent-foreground">{document.category}</Badge> : null}
+            <Badge className="bg-accent text-accent-foreground">{categoryLabel}</Badge>
+            <Badge variant="outline">{titleCaseLabel(document.source_file_type || document.document_type)}</Badge>
+            {document.is_favorite ? <Badge className="border-amber-300 bg-amber-50 text-amber-800">Pinned</Badge> : null}
           </div>
-          <h1 className="text-3xl font-semibold tracking-normal">{document.title || document.original_filename}</h1>
-          <p className="mt-2 text-muted-foreground">{document.original_filename}</p>
+          <h1 className="text-3xl font-semibold tracking-normal">{document.title || titleHint || document.original_filename}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {document.original_filename} · Updated {formatDateTime(document.updated_at)}
+          </p>
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+            {documentSummaryDetailed(document, 700)}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline"><a href={api.exportJsonUrl(document.id)}><Download className="size-4" /> JSON</a></Button>
-          <Button variant="outline" onClick={reprocess} disabled={saving}><RefreshCw className="size-4" /> Reprocess</Button>
-          <Button variant="destructive" onClick={remove}><Trash2 className="size-4" /> Delete</Button>
+          <Button variant={isConfirmed ? "secondary" : "default"} onClick={confirmDocument} disabled={saving || isConfirmed}>
+            <CheckCheck className="size-4" />
+            {isConfirmed ? "Confirmed" : "Confirm"}
+          </Button>
+          <Button variant="outline" onClick={markNeedsReview} disabled={saving}>
+            <AlertTriangle className="size-4" />
+            Needs Review
+          </Button>
+          <Button variant="outline" onClick={toggleFavorite}>
+            <Star className={`size-4 ${document.is_favorite ? "fill-amber-400 text-amber-400" : ""}`} />
+            {document.is_favorite ? "Pinned" : "Pin"}
+          </Button>
+          <Button variant="outline" onClick={reprocess} disabled={saving}>
+            <RefreshCw className="size-4" />
+            Reprocess
+          </Button>
+          <Button asChild variant="outline">
+            <a href={api.exportJsonUrl(document.id)}>
+              <Download className="size-4" />
+              JSON
+            </a>
+          </Button>
+          <Button variant="destructive" onClick={remove}>
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
         </div>
+      </div>
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Primary category</p>
+            <p className="mt-1 font-semibold">{categoryLabel}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Broad type</p>
+            <p className="mt-1 font-semibold">{titleCaseLabel(document.document_type)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Interpretation profile</p>
+            <p className="mt-1 font-semibold">{categoryProfile ? titleCaseLabel(categoryProfile) : "Not surfaced"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Provider chain</p>
+            <p className="mt-1 break-words text-sm font-semibold">{document.provider_chain || "Unavailable"}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {document.processing_error ? (
@@ -144,37 +305,124 @@ export default function DocumentDetailPage() {
         </Card>
       ) : null}
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+      <div className="mb-4 flex flex-wrap gap-2">
+        {detailTabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`rounded-full border px-4 py-2 text-sm transition ${
+              activeTab === tab ? "border-primary bg-primary text-primary-foreground" : "bg-white text-muted-foreground hover:border-primary/40"
+            }`}
+          >
+            {tab === "ai" ? "AI Result" : tab === "extracted" ? "Extracted Text" : "Original"}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle>{isImage ? "Image preview" : "File preview"}</CardTitle></CardHeader>
-            <CardContent>
-              {isImage ? (
-                <div className="relative h-[620px] max-h-[70vh] w-full rounded-md border bg-white">
-                  <Image
-                    src={document.file_url}
-                    alt={document.original_filename}
-                    fill
-                    unoptimized
-                    className="object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="flex min-h-56 flex-col items-center justify-center rounded-md border bg-white p-6 text-center">
-                  <FileText className="mb-3 size-10 text-primary" />
-                  <p className="font-semibold">{document.original_filename}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{document.mime_type}</p>
-                  <Button asChild variant="outline" className="mt-4"><a href={document.file_url}>Open original</a></Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Extracted text</CardTitle></CardHeader>
-            <CardContent>
-              <Textarea className="min-h-96 font-mono text-xs" {...form.register("raw_text")} />
-            </CardContent>
-          </Card>
+          {activeTab === "original" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Original document</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isImage ? (
+                  <div className="relative h-[42rem] max-h-[72vh] w-full rounded-lg border bg-white">
+                    <Image src={document.file_url} alt={document.original_filename} fill unoptimized className="object-contain" />
+                  </div>
+                ) : (
+                  <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border bg-white p-8 text-center">
+                    <FileText className="mb-3 size-10 text-primary" />
+                    <p className="font-semibold">{document.original_filename}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{document.mime_type}</p>
+                    <Button asChild variant="outline" className="mt-4">
+                      <a href={document.file_url}>Open original</a>
+                    </Button>
+                  </div>
+                )}
+                <InfoGrid
+                  items={[
+                    ["Source file type", titleCaseLabel(document.source_file_type || "unknown")],
+                    ["Extraction method", document.extraction_method || "Unavailable"],
+                    ["Uploaded", formatDateTime(document.created_at)],
+                    ["Last updated", formatDateTime(document.updated_at)],
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {activeTab === "extracted" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Extracted text</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Textarea className="min-h-[38rem] font-mono text-xs" {...form.register("raw_text")} />
+                <InfoGrid
+                  items={[
+                    ["Extraction provider", document.extraction_provider || "Unavailable"],
+                    ["Refinement provider", document.refinement_provider || "Not used"],
+                    ["Confidence", document.ai_confidence_score ? `${Math.round(Number(document.ai_confidence_score) * 100)}%` : null],
+                    ["Review recommendation", document.review_required ? "Recommended" : "Looks usable"],
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {activeTab === "ai" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="size-5 text-primary" />
+                  AI result
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <InfoGrid
+                  items={[
+                    ["Predicted type", document.ai_document_type ? titleCaseLabel(document.ai_document_type) : null],
+                    ["Primary visible label", categoryLabel],
+                    ["Interpretation profile", categoryProfile ? titleCaseLabel(categoryProfile) : null],
+                    ["Title hint", titleHint],
+                  ]}
+                />
+                {document.ai_extraction_notes ? (
+                  <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground whitespace-pre-line">
+                    {document.ai_extraction_notes}
+                  </div>
+                ) : null}
+                {surfacedFields.length ? (
+                  <div className="rounded-lg border bg-white p-4">
+                    <p className="mb-3 text-xs font-medium uppercase text-muted-foreground">Surfaced fields</p>
+                    <div className="flex flex-wrap gap-2">
+                      {surfacedFields.map((field) => (
+                        <Badge key={field} variant="outline">
+                          {titleCaseLabel(field)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {document.field_sources ? (
+                  <div className="rounded-lg border bg-white p-4">
+                    <p className="mb-3 text-xs font-medium uppercase text-muted-foreground">Field provenance</p>
+                    <div className="grid gap-2 text-sm sm:grid-cols-2">
+                      {Object.entries(document.field_sources).map(([field, source]) => (
+                        <div key={field} className="flex items-center justify-between rounded-md border px-3 py-2">
+                          <span>{titleCaseLabel(field)}</span>
+                          <span className="text-muted-foreground">{source}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
         </section>
 
         <section className="space-y-6">
@@ -183,96 +431,95 @@ export default function DocumentDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bot className="size-5 text-primary" />
-                AI understanding
+                Review and organization
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Predicted type</p>
-                  <p className="mt-1 font-semibold capitalize">{document.ai_document_type || "Unavailable"}</p>
-                </div>
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Confidence</p>
-                  <p className="mt-1 font-semibold">
-                    {document.ai_confidence_score ? `${Math.round(Number(document.ai_confidence_score) * 100)}%` : "Unavailable"}
-                  </p>
-                </div>
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Review</p>
-                  <p className="mt-1 font-semibold">{document.review_required ? "Recommended" : "Looks usable"}</p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Primary provider</p>
-                  <p className="mt-1 font-semibold">{document.extraction_provider || "Unavailable"}</p>
-                </div>
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Second pass</p>
-                  <p className="mt-1 font-semibold">{document.refinement_provider || "Not used"}</p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">File type</p>
-                  <p className="mt-1 font-semibold uppercase">{document.source_file_type || "unknown"}</p>
-                </div>
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Extraction method</p>
-                  <p className="mt-1 break-words font-semibold">{document.extraction_method || "Unavailable"}</p>
-                </div>
-                <div className="rounded-md border bg-white p-3">
-                  <p className="text-xs text-muted-foreground">Route</p>
-                  <p className="mt-1 break-words font-semibold">
-                    {typeof document.ingestion_metadata?.route === "string" ? document.ingestion_metadata.route : "Unavailable"}
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-md border bg-white p-3">
-                <p className="text-xs text-muted-foreground">Provider chain</p>
-                <p className="mt-1 break-words font-semibold">{document.provider_chain || "Unavailable"}</p>
-                {document.merge_strategy ? <p className="mt-1 text-xs text-muted-foreground">{document.merge_strategy}</p> : null}
-              </div>
               {document.review_required ? (
-                <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-100/60 p-3 text-sm text-amber-900">
+                <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-100/60 p-3 text-sm text-amber-900">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  Check the highlighted extraction before using this document data.
+                  Review is recommended before relying on this result. Confirm when it looks right, or keep it in the review queue.
                 </div>
               ) : null}
-              {document.ai_extraction_notes ? (
-                <div className="rounded-md border bg-white p-3 text-sm text-muted-foreground whitespace-pre-line">
-                  {document.ai_extraction_notes}
-                </div>
-              ) : null}
+              <InfoGrid
+                items={[
+                  ["Current folder", categoryLabel],
+                  ["Status", titleCaseLabel(document.processing_status)],
+                  ["Needs review", document.review_required ? "Yes" : "No"],
+                  ["Follow-up", document.follow_up_required ? "Suggested" : "Not required"],
+                ]}
+              />
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Structured fields</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Edit document</CardTitle>
+            </CardHeader>
             <CardContent className="grid gap-4">
-              <label className="grid gap-2 text-sm font-medium">Title<Input {...form.register("title")} /></label>
               <label className="grid gap-2 text-sm font-medium">
-                Type
+                Title
+                <Input {...form.register("title")} />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Broad type
                 <select className="h-10 rounded-md border bg-white px-3 text-sm" {...form.register("document_type")}>
-                  {documentTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {documentTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
                 </select>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium">Date<Input type="date" {...form.register("extracted_date")} /></label>
-                <label className="grid gap-2 text-sm font-medium">Amount<Input type="number" min="0" step="0.01" {...form.register("extracted_amount")} /></label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Extracted date
+                  <Input type="date" {...form.register("extracted_date")} />
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Amount
+                  <Input type="number" min="0" step="0.01" {...form.register("extracted_amount")} />
+                </label>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium">Subtotal<Input type="number" min="0" step="0.01" {...form.register("subtotal")} /></label>
-                <label className="grid gap-2 text-sm font-medium">Tax<Input type="number" min="0" step="0.01" {...form.register("tax")} /></label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Subtotal
+                  <Input type="number" min="0" step="0.01" {...form.register("subtotal")} />
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Tax
+                  <Input type="number" min="0" step="0.01" {...form.register("tax")} />
+                </label>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium">Currency<Input placeholder="USD" {...form.register("currency")} /></label>
-                <label className="grid gap-2 text-sm font-medium">Merchant<Input {...form.register("merchant_name")} /></label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Currency
+                  <Input placeholder="USD" {...form.register("currency")} />
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Merchant / source
+                  <Input {...form.register("merchant_name")} />
+                </label>
               </div>
-              <label className="grid gap-2 text-sm font-medium">Category<Input {...form.register("category")} /></label>
-              <label className="grid gap-2 text-sm font-medium">Tags<Input placeholder="receipt, groceries" {...form.register("tags_text")} /></label>
-              <label className="grid gap-2 text-sm font-medium">Summary<Textarea className="min-h-28" {...form.register("summary")} /></label>
-              <div className="flex justify-end">
+              <label className="grid gap-2 text-sm font-medium">
+                Category folder
+                <Input placeholder="presentation_guide, receipt, resume_profile" {...form.register("category")} />
+              </label>
+              <p className="-mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Tag className="size-3.5" />
+                Changing the category moves this document into a different AI-organized folder.
+              </p>
+              <label className="grid gap-2 text-sm font-medium">
+                Tags
+                <Input placeholder="finance, spring-2026, review" {...form.register("tags_text")} />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Summary
+                <Textarea className="min-h-28" {...form.register("summary")} />
+              </label>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Link href="/review" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+                  Open review queue
+                </Link>
                 <Button type="submit" disabled={saving}>
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                   Save changes

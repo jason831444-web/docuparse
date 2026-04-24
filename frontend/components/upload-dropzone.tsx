@@ -100,9 +100,9 @@ export function UploadDropzone() {
       <div className="mb-4 grid size-14 place-items-center rounded-md bg-secondary">
         {uploading ? <Loader2 className="size-7 animate-spin" /> : <FileUp className="size-7 text-primary" />}
       </div>
-      <h2 className="text-xl font-semibold">Upload a receipt, notice, or note</h2>
+      <h2 className="text-xl font-semibold">Upload any document for AI workflow analysis</h2>
       <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-        DocuParse routes images, PDFs, Office files, and structured text through the right extraction path, then opens the result for review.
+        DocuParse routes images, PDFs, Office files, and structured text through the right extraction path, then opens a review-ready document workspace.
       </p>
       <input
         ref={inputRef}

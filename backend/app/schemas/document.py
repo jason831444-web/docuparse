@@ -24,6 +24,8 @@ class DocumentBase(BaseModel):
 
 class DocumentUpdate(DocumentBase):
     confidence_score: Decimal | None = Field(default=None, ge=0, le=1)
+    processing_status: ProcessingStatus | None = None
+    is_favorite: bool | None = None
 
 
 class DocumentRead(DocumentBase):
@@ -51,6 +53,7 @@ class DocumentRead(DocumentBase):
     urgency_level: str | None = None
     follow_up_required: bool = False
     workflow_metadata: dict | None = None
+    is_favorite: bool = False
     processing_status: ProcessingStatus
     preview_image_path: str | None = None
     processing_error: str | None = None
@@ -73,8 +76,30 @@ class DocumentStats(BaseModel):
     receipts: int
     notices: int
     completed: int
+    confirmed: int = 0
     processing: int
     failed: int
     needs_review: int = 0
     queued: int = 0
     recent: list[DocumentRead]
+    recent_updated: list[DocumentRead] = Field(default_factory=list)
+    recent_review: list[DocumentRead] = Field(default_factory=list)
+    pinned: list[DocumentRead] = Field(default_factory=list)
+    category_overview: list[dict] = Field(default_factory=list)
+    file_type_overview: list[dict] = Field(default_factory=list)
+
+
+class FolderSummary(BaseModel):
+    label: str
+    value: str
+    count: int
+    needs_review: int = 0
+    confirmed: int = 0
+    processing: int = 0
+
+
+class ActivitySummary(BaseModel):
+    recent_uploads: list[DocumentRead] = Field(default_factory=list)
+    recent_edits: list[DocumentRead] = Field(default_factory=list)
+    recent_needs_review: list[DocumentRead] = Field(default_factory=list)
+    favorites: list[DocumentRead] = Field(default_factory=list)

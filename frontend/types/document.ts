@@ -1,5 +1,14 @@
 export type DocumentType = "receipt" | "notice" | "document" | "memo" | "other";
-export type ProcessingStatus = "uploaded" | "queued" | "processing" | "ready" | "needs_review" | "completed" | "failed";
+export type ProcessingStatus = "uploaded" | "queued" | "processing" | "ready" | "needs_review" | "confirmed" | "completed" | "failed";
+
+export interface FolderSummary {
+  label: string;
+  value: string;
+  count: number;
+  needs_review: number;
+  confirmed: number;
+  processing: number;
+}
 
 export interface DocumentRecord {
   id: string;
@@ -38,6 +47,7 @@ export interface DocumentRecord {
   urgency_level: "low" | "medium" | "high" | null;
   follow_up_required: boolean;
   workflow_metadata: Record<string, unknown> | null;
+  is_favorite: boolean;
   processing_status: ProcessingStatus;
   preview_image_path: string | null;
   processing_error: string | null;
@@ -62,7 +72,13 @@ export interface DocumentStats {
   failed: number;
   needs_review: number;
   queued: number;
+  confirmed: number;
   recent: DocumentRecord[];
+  recent_updated: DocumentRecord[];
+  recent_review: DocumentRecord[];
+  pinned: DocumentRecord[];
+  category_overview: FolderSummary[];
+  file_type_overview: FolderSummary[];
 }
 
 export type DocumentUpdate = Pick<
@@ -79,4 +95,15 @@ export type DocumentUpdate = Pick<
   | "category"
   | "tags"
   | "summary"
-> & { confidence_score?: string | null };
+> & {
+  confidence_score?: string | null;
+  processing_status?: ProcessingStatus;
+  is_favorite?: boolean;
+};
+
+export interface ActivitySummary {
+  recent_uploads: DocumentRecord[];
+  recent_edits: DocumentRecord[];
+  recent_needs_review: DocumentRecord[];
+  favorites: DocumentRecord[];
+}

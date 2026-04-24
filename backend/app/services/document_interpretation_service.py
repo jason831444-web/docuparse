@@ -464,7 +464,7 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
             raise RuntimeError("Gemma interpretation runtime is not installed. Install backend/requirements-ai.txt.")
         try:
             import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
         except Exception as exc:
             raise RuntimeError(
                 "Gemma runtime is not installed. Install backend/requirements-ai.txt and configure Gemma weights."
@@ -477,7 +477,11 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
         device_map = self._device_map(torch)
         self._input_device = self._input_device_name(torch, device_map)
 
-        logger.warning("Loading Gemma interpretation model from %s", model_ref)
+        if local_only:
+            logger.warning("Loading Gemma interpretation model from local directory: %s", model_ref)
+        else:
+            logger.warning("Loading Gemma interpretation model from remote repo: %s", model_ref)
+        AutoConfig.from_pretrained(model_ref, **pretrained_kwargs)
         self._tokenizer = AutoTokenizer.from_pretrained(model_ref, **pretrained_kwargs)
         model_load_kwargs: dict[str, Any] = dict(pretrained_kwargs)
         model_load_kwargs["torch_dtype"] = torch_dtype
@@ -550,19 +554,21 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
     def _model_attempts(self) -> list[dict[str, Any]]:
         attempts: list[dict[str, Any]] = []
         local_model_dir = self.settings.gemma_model_dir
-        primary_ref = str(local_model_dir) if local_model_dir else (self.settings.gemma_model_name or self.settings.ai_interpretation_model)
-        primary_local = bool(local_model_dir)
+        local_ref = str(local_model_dir) if local_model_dir else None
+        primary_ref = local_ref or (self.settings.gemma_model_name or self.settings.ai_interpretation_model)
+        primary_local = bool(local_ref)
         fallback_ref = self.settings.ai_interpretation_fallback_model
         fallback_enabled = self.settings.ai_interpretation_enable_model_fallback and bool(fallback_ref)
         prefer_small = self.settings.ai_interpretation_local_prefer_small_model
         force_small = self.settings.ai_interpretation_force_small_model
 
         if force_small and fallback_enabled:
+            forced_ref = local_ref or fallback_ref
             return [
                 {
-                    "model_ref": fallback_ref,
+                    "model_ref": forced_ref,
                     "provider_label": "ai_interpretation_gemma_fallback_small",
-                    "local_only": False,
+                    "local_only": bool(local_ref),
                     "fallback_candidate": True,
                 }
             ]
@@ -573,20 +579,22 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
             "local_only": primary_local,
             "fallback_candidate": False,
         }
-        fallback_attempt = {
-            "model_ref": fallback_ref,
-            "provider_label": "ai_interpretation_gemma_fallback_small",
-            "local_only": False,
-            "fallback_candidate": True,
-        }
+        fallback_attempt = None
+        if fallback_enabled and fallback_ref and fallback_ref != primary_ref and not local_ref:
+            fallback_attempt = {
+                "model_ref": fallback_ref,
+                "provider_label": "ai_interpretation_gemma_fallback_small",
+                "local_only": False,
+                "fallback_candidate": True,
+            }
 
-        if prefer_small and fallback_enabled and not primary_local:
+        if prefer_small and fallback_attempt is not None:
             attempts.append(fallback_attempt)
             attempts.append(primary_attempt)
             return attempts
 
         attempts.append(primary_attempt)
-        if fallback_enabled and fallback_ref and fallback_ref != primary_ref:
+        if fallback_attempt is not None:
             attempts.append(fallback_attempt)
         return attempts
 

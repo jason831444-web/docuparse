@@ -11,6 +11,8 @@ from app.services.category_interpretation import CategoryInterpretation
 @dataclass
 class WorkflowEnrichment:
     workflow_summary: str | None = None
+    summary_short: str | None = None
+    summary_detailed: str | None = None
     action_items: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     key_dates: list[str] = field(default_factory=list)
@@ -65,6 +67,15 @@ class DocumentWorkflowEnrichmentService:
         result.action_items = self._dedupe(result.action_items)
         result.warnings = self._dedupe(result.warnings)
         result.key_dates = self._normalize_date_list(result.key_dates)
+        summary_short, summary_detailed = self._finalize_summaries(document, text, mode, profile, result, interpretation)
+        result.summary_short = summary_short
+        result.summary_detailed = summary_detailed
+        if summary_detailed:
+            result.workflow_summary = summary_detailed
+        result.workflow_metadata["summaries"] = {
+            "short": summary_short,
+            "detailed": summary_detailed,
+        }
         result.workflow_metadata["workflow_mode"] = mode
         result.workflow_metadata["content_profile"] = profile
         result.workflow_metadata["source"] = "deterministic_workflow_enrichment"
@@ -87,6 +98,306 @@ class DocumentWorkflowEnrichmentService:
                 "ai_assisted": interpretation.ai_assisted,
             }
         return result
+
+    def _finalize_summaries(
+        self,
+        document: Document,
+        text: str,
+        mode: str,
+        profile: str,
+        result: WorkflowEnrichment,
+        interpretation: CategoryInterpretation | None,
+    ) -> tuple[str | None, str | None]:
+        short = self._build_summary_short(document, text, mode, profile, result, interpretation)
+        detailed = self._build_summary_detailed(document, text, mode, profile, result, interpretation, short)
+        return short, detailed
+
+    def _build_summary_short(
+        self,
+        document: Document,
+        text: str,
+        mode: str,
+        profile: str,
+        result: WorkflowEnrichment,
+        interpretation: CategoryInterpretation | None,
+    ) -> str | None:
+        receipt_meta = self._metadata_section(result, "receipt")
+        syllabus_meta = self._metadata_section(result, "syllabus")
+        guide_meta = self._metadata_section(result, "guide")
+        resume_meta = self._metadata_section(result, "resume")
+        profile_meta = self._metadata_section(result, "profile")
+        utilities_meta = self._metadata_section(result, "utilities")
+        notice_meta = self._metadata_section(result, "notice")
+        generic_meta = self._metadata_section(result, "generic")
+
+        if document.document_type == DocumentType.receipt:
+            return self._receipt_spend_summary(document, text)
+        if profile in {"syllabus", "course_guide"}:
+            return self._sentence([
+                self._string_value(syllabus_meta.get("course_title")) or document.title,
+                self._string_value(syllabus_meta.get("course_code")),
+                self._string_value(syllabus_meta.get("semester")),
+                self._string_value(syllabus_meta.get("instructor")),
+            ]) or result.workflow_summary
+        if profile in {"presentation_guide", "speaking_notes"}:
+            return self._sentence([
+                self._string_value(guide_meta.get("purpose")) or document.title,
+                self._string_value(guide_meta.get("audience")),
+                "presentation guide",
+            ]) or result.workflow_summary
+        if profile == "resume_profile":
+            return self._sentence([
+                self._string_value(resume_meta.get("person_name")) or document.title,
+                self._string_value(resume_meta.get("degree")),
+                self._string_value(resume_meta.get("graduation")),
+                "resume profile",
+            ]) or result.workflow_summary
+        if profile == "profile_record":
+            facts = self._string_list(profile_meta.get("identity_facts"))
+            overview = self._profile_fact_overview(facts)
+            return (
+                f"Profile record with {overview}." if overview else self._sentence([document.title, "profile record"])
+            ) or result.workflow_summary
+        if mode in {"utilities", "utility_bill"}:
+            return self._sentence([
+                self._string_value(utilities_meta.get("provider")) or document.merchant_name,
+                "utility bill",
+                self._money_string(utilities_meta.get("amount_due"), document.currency),
+                self._string_value(utilities_meta.get("due_date")),
+            ]) or result.workflow_summary
+        if profile == "meeting_notice":
+            meeting_meta = self._metadata_section(result, "meeting_notice")
+            return self._sentence([
+                self._string_value(meeting_meta.get("purpose")) or document.title,
+                self._string_value(meeting_meta.get("meeting_date")),
+                self._string_value(meeting_meta.get("location")),
+            ]) or result.workflow_summary
+        if profile == "instructional_memo":
+            return self._sentence([document.title, "instructional memo"]) or result.workflow_summary
+        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint):
+            return interpretation.summary_hint
+        return (
+            result.workflow_summary
+            or document.summary
+            or self._sentence([
+                document.title,
+                self._category_display_name(profile if profile != "standard" else mode or document.document_type.value),
+                self._string_value(notice_meta.get("notice_type_hint")),
+                self._string_value(generic_meta.get("heading_quality")),
+            ])
+        )
+
+    def _build_summary_detailed(
+        self,
+        document: Document,
+        text: str,
+        mode: str,
+        profile: str,
+        result: WorkflowEnrichment,
+        interpretation: CategoryInterpretation | None,
+        summary_short: str | None,
+    ) -> str | None:
+        receipt_meta = self._metadata_section(result, "receipt")
+        syllabus_meta = self._metadata_section(result, "syllabus")
+        guide_meta = self._metadata_section(result, "guide")
+        resume_meta = self._metadata_section(result, "resume")
+        profile_meta = self._metadata_section(result, "profile")
+        utilities_meta = self._metadata_section(result, "utilities")
+        notice_meta = self._metadata_section(result, "notice")
+        meeting_meta = self._metadata_section(result, "meeting_notice")
+        generic_meta = self._metadata_section(result, "generic")
+
+        if document.document_type == DocumentType.receipt:
+            top_items = self._string_list(receipt_meta.get("top_item_lines"))
+            item_phrase = " It includes itemized purchase lines." if top_items else ""
+            if self._dict_value(receipt_meta.get("category_context")).get("subtype") == "repair_service":
+                return self._join_summary_sentences(
+                    f"This is a repair-service receipt from {self._merchant_display(document) or 'the merchant'} totaling {self._money(document.extracted_amount) or 'an unknown amount'}.",
+                    f"It contains service-related charges such as parts, labor, or maintenance line items.{item_phrase}".strip(),
+                    "It is useful for expense tracking, reimbursement, or keeping a record of completed service work.",
+                )
+            return self._join_summary_sentences(
+                f"This is a receipt from {self._merchant_display(document) or 'the merchant'}{self._date_phrase(document)} totaling {self._money(document.extracted_amount) or 'an unknown amount'}.",
+                "It contains extracted purchase details such as subtotal, tax, and itemized lines when available.",
+                "It is useful for expense tracking, reimbursement, or keeping a record of the transaction.",
+            )
+        if profile in {"syllabus", "course_guide"}:
+            return self._join_summary_sentences(
+                f"This is a {self._category_display_name(profile)} for {self._string_value(syllabus_meta.get('course_title')) or document.title or 'a course'}.",
+                self._describe_contains([
+                    self._string_value(syllabus_meta.get("course_code")),
+                    self._string_value(syllabus_meta.get("semester")),
+                    self._string_value(syllabus_meta.get("instructor")),
+                    self._list_preview(syllabus_meta.get("required_materials"), label="required materials"),
+                    self._list_preview(syllabus_meta.get("key_policies"), label="policies"),
+                    self._list_preview(syllabus_meta.get("exam_dates"), label="exam details"),
+                ]),
+                "It is useful for understanding course expectations, schedule planning, and important academic requirements.",
+            )
+        if profile in {"presentation_guide", "speaking_notes"}:
+            return self._join_summary_sentences(
+                f"This is a {self._category_display_name(profile)}{self._title_phrase(document.title)}.",
+                self._describe_contains([
+                    self._string_value(guide_meta.get("purpose")),
+                    self._string_value(guide_meta.get("audience")),
+                    self._list_preview(guide_meta.get("slide_guidance"), label="slide flow guidance"),
+                    self._list_preview(guide_meta.get("speaking_notes"), label="speaking notes"),
+                    self._list_preview(guide_meta.get("preparation_actions"), label="rehearsal or preparation guidance"),
+                ]),
+                "It is useful for preparing delivery, keeping the presentation structured, and rehearsing key talking points.",
+            )
+        if profile == "resume_profile":
+            return self._join_summary_sentences(
+                f"This is a resume/profile document{self._title_phrase(self._string_value(resume_meta.get('person_name')) or document.title)}.",
+                self._describe_contains([
+                    self._list_preview(resume_meta.get("education"), label="education"),
+                    self._string_value(resume_meta.get("degree")),
+                    self._string_value(resume_meta.get("graduation")),
+                    self._string_value(resume_meta.get("gpa")),
+                    self._list_preview(resume_meta.get("work_experience"), label="work experience"),
+                    self._list_preview(resume_meta.get("projects"), label="projects"),
+                    self._list_preview(resume_meta.get("technical_skills"), label="technical skills"),
+                ]),
+                "It is useful for reviewing qualifications, background, and skills for academic or professional evaluation.",
+            )
+        if profile == "profile_record":
+            facts = self._string_list(profile_meta.get("identity_facts"))
+            return self._join_summary_sentences(
+                "This is a profile record.",
+                self._describe_contains([
+                    self._list_preview(facts, label="identity facts"),
+                    self._string_value(profile_meta.get("profile_type_hint")),
+                ]),
+                "It is useful for quick reference to key identity or affiliation details.",
+            )
+        if mode in {"utilities", "utility_bill"}:
+            return self._join_summary_sentences(
+                f"This is a utility bill from {self._string_value(utilities_meta.get('provider')) or self._merchant_display(document) or 'the provider'}.",
+                self._describe_contains([
+                    self._money_string(utilities_meta.get("amount_due"), document.currency),
+                    self._string_value(utilities_meta.get("due_date")),
+                    self._string_value(utilities_meta.get("billing_period")),
+                ]),
+                "It matters because it contains payment timing and amount-due details for keeping the account current.",
+            )
+        if profile == "meeting_notice":
+            return self._join_summary_sentences(
+                "This is a meeting notice.",
+                self._describe_contains([
+                    self._string_value(meeting_meta.get("purpose")) or document.title,
+                    self._string_value(meeting_meta.get("meeting_date")),
+                    self._string_value(meeting_meta.get("time_hint")),
+                    self._string_value(meeting_meta.get("location")),
+                ]),
+                "It is useful for preparing attendance, timing, and meeting logistics.",
+            )
+        if profile == "instructional_memo":
+            return self._join_summary_sentences(
+                f"This is an instructional memo{self._title_phrase(document.title)}.",
+                self._describe_contains([
+                    self._list_preview(result.action_items, label="recommended actions"),
+                    self._list_preview(result.key_dates, label="key dates"),
+                ]),
+                "It is useful for understanding what needs to be done and when to follow up.",
+            )
+        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint):
+            return self._join_summary_sentences(
+                f"This is a {self._category_display_name(profile if profile != 'standard' else mode)}.",
+                interpretation.summary_hint,
+                self._generic_importance_sentence(result),
+            )
+        return self._join_summary_sentences(
+            f"This is a {self._category_display_name(profile if profile != 'standard' else mode or document.document_type.value)}{self._title_phrase(document.title)}.",
+            self._describe_contains([
+                summary_short,
+                self._list_preview(result.action_items, label="action items"),
+                self._list_preview(result.key_dates, label="key dates"),
+                self._list_preview(result.warnings, label="review notes"),
+                self._list_preview(generic_meta.get("key_entities"), label="key entities"),
+                self._string_value(notice_meta.get("notice_type_hint")),
+            ]),
+            self._generic_importance_sentence(result),
+        )
+
+    def _metadata_section(self, result: WorkflowEnrichment, key: str) -> dict[str, Any]:
+        value = result.workflow_metadata.get(key)
+        return value if isinstance(value, dict) else {}
+
+    def _string_value(self, value: Any) -> str | None:
+        if isinstance(value, str):
+            return self._clean_text_fragment(value)
+        if isinstance(value, (int, float, Decimal)):
+            return self._clean_text_fragment(str(value))
+        return None
+
+    def _string_list(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        items = [self._clean_text_fragment(str(item)) for item in value if item]
+        return [item for item in items if item]
+
+    def _dict_value(self, value: Any) -> dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
+    def _list_preview(self, value: Any, label: str | None = None, max_items: int = 3) -> str | None:
+        items = self._string_list(value)
+        if not items:
+            return None
+        preview = ", ".join(items[:max_items])
+        if label:
+            return f"{label}: {preview}"
+        return preview
+
+    def _money_string(self, value: Any, currency: str | None = None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, Decimal):
+            amount = value
+        else:
+            try:
+                amount = Decimal(str(value))
+            except Exception:
+                return None
+        code = currency or "USD"
+        return f"{self._money(amount)} {code}".strip()
+
+    def _category_display_name(self, value: str | None) -> str:
+        if not value:
+            return "document"
+        return str(value).replace("_", " ").replace("-", " ")
+
+    def _title_phrase(self, title: str | None) -> str:
+        cleaned = self._clean_text_fragment(title)
+        return f" titled {cleaned}" if cleaned else ""
+
+    def _date_phrase(self, document: Document) -> str:
+        return f" dated {document.extracted_date.isoformat()}" if document.extracted_date else ""
+
+    def _describe_contains(self, parts: list[str | None]) -> str | None:
+        values = [self._clean_text_fragment(part) for part in parts if part]
+        values = [value for value in values if value]
+        if not values:
+            return None
+        joined = ", ".join(values[:5])
+        return f"It contains {joined}."
+
+    def _join_summary_sentences(self, *parts: str | None) -> str | None:
+        sentences = []
+        for part in parts:
+            cleaned = self._clean_text_fragment(part)
+            if not cleaned:
+                continue
+            if cleaned[-1] not in ".!?":
+                cleaned = f"{cleaned}."
+            sentences.append(cleaned)
+        if not sentences:
+            return None
+        return " ".join(sentences)[:900]
+
+    def _generic_importance_sentence(self, result: WorkflowEnrichment) -> str:
+        if result.follow_up_required or result.action_items:
+            return "It is useful for understanding the main content and any follow-up or review steps."
+        return "It is useful for understanding the document's main content and preserving a clear record."
 
     def _workflow_mode(self, document: Document, interpretation: CategoryInterpretation | None = None) -> str:
         category = ((interpretation.category if interpretation else None) or document.category or "").lower()
