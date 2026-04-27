@@ -154,8 +154,9 @@ class DocumentWorkflowEnrichmentService:
         purpose_sentence = self._importance_purpose_sentence(document, mode, profile, result, important_points)
         if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint):
             highlight_sentence = self._natural_highlight_sentence([interpretation.summary_hint] + top_points[:3], mode, profile) or highlight_sentence
+        label = self._category_display_name(profile if profile != "standard" else mode or document.document_type.value)
         return self._join_summary_sentences(
-            f"This is a {self._category_display_name(profile if profile != 'standard' else mode or document.document_type.value)}{self._title_phrase(document.title)}.",
+            f"This is {self._article(label)} {label}{self._title_phrase(document.title)}.",
             highlight_sentence or summary_short,
             purpose_sentence,
         )
@@ -358,7 +359,7 @@ class DocumentWorkflowEnrichmentService:
         important_points: list[str],
     ) -> str:
         if result.follow_up_required or result.action_items:
-            return "It highlights the key details the reader should review and any follow-up or next-step cues surfaced from the document."
+            return "Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context."
         if document.document_type == DocumentType.receipt:
             return "It mainly matters as a transaction record, especially for tracking, reimbursement, or understanding the purchase or service context."
         if profile in {"syllabus", "course_guide"}:
@@ -433,7 +434,7 @@ class DocumentWorkflowEnrichmentService:
         if len(cleaned) == 1:
             return self._safe_sentence(f"{lead} {cleaned[0]}")
         if len(cleaned) == 2:
-            return self._safe_sentence(f"{lead} {cleaned[0]}, along with {cleaned[1]}")
+            return self._safe_sentence(f"{lead} {cleaned[0]} and {cleaned[1]}")
         joined = self._join_phrases(cleaned[:3])
         return self._safe_sentence(f"{lead} {joined}")
 
@@ -446,8 +447,8 @@ class DocumentWorkflowEnrichmentService:
         if key in {"resume_profile", "profile_record"}:
             return "It brings together"
         if key in {"receipt", "repair_service_receipt", "utility_bill", "invoice"}:
-            return "It highlights"
-        return "It highlights"
+            return "Key details include"
+        return "Key details include"
 
     def _finalize_action_items(self, items: list[str], text: str, mode: str, profile: str) -> list[str]:
         normalized = [self._normalize_action_item(item, mode, profile) for item in items]
@@ -465,6 +466,10 @@ class DocumentWorkflowEnrichmentService:
         cleaned = re.sub(r"^(?:action|next step|next steps)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = cleaned.strip()
         lowered = cleaned.lower()
+        key = profile if profile != "standard" else mode
+        receipt_like = {"receipt", "repair_service_receipt", "utility_bill", "invoice"}
+        if "receipt" in lowered and key not in receipt_like:
+            return self._action_fallback(mode, profile)
         if len(cleaned.split()) > 12 or self._looks_like_body_fragment(cleaned):
             if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
                 return "Review the document for deadlines or required submission steps."
@@ -604,6 +609,13 @@ class DocumentWorkflowEnrichmentService:
             return "document"
         return str(value).replace("_", " ").replace("-", " ")
 
+    def _article(self, label: str) -> str:
+        first_word = (label or "").split(maxsplit=1)[0].lower()
+        consonant_sound_vowels = ("uni", "use", "user", "utility", "euro", "one")
+        if first_word.startswith(consonant_sound_vowels):
+            return "a"
+        return "an" if first_word[:1] in {"a", "e", "i", "o", "u"} else "a"
+
     def _title_phrase(self, title: str | None) -> str:
         cleaned = self._clean_text_fragment(title)
         return f" titled {cleaned}" if cleaned else ""
@@ -677,7 +689,7 @@ class DocumentWorkflowEnrichmentService:
         if warnings:
             action_items.append("Review receipt merchant, date, and total.")
         else:
-            action_items.append("Receipt is ready for expense export or filing.")
+            action_items.append("File this receipt for expense export or reimbursement records.")
 
         spend_summary = self._receipt_spend_summary(document, text)
         return WorkflowEnrichment(

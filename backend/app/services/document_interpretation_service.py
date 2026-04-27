@@ -691,10 +691,62 @@ class GemmaInterpretationProvider(OpenAITextInterpretationProvider):
         return f"{instruction}\n\nDocument payload:\n{json.dumps(payload, ensure_ascii=True)}\n\nJSON:"
 
     def _extract_json(self, output_text: str) -> dict[str, Any]:
-        try:
-            return json.loads(output_text)
-        except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", output_text, flags=re.DOTALL)
-            if not match:
-                raise RuntimeError(f"Gemma output did not contain JSON: {output_text[:400]}")
-            return json.loads(match.group(0))
+        candidates = [output_text.strip()]
+        balanced = self._balanced_json_object(output_text)
+        if balanced:
+            candidates.append(balanced)
+        match = re.search(r"\{.*\}", output_text, flags=re.DOTALL)
+        if match:
+            candidates.append(match.group(0))
+
+        errors: list[str] = []
+        for candidate in dict.fromkeys(value for value in candidates if value):
+            cleaned = self._strip_json_fence(candidate)
+            for variant in (cleaned, self._repair_json_object(cleaned)):
+                try:
+                    return json.loads(variant)
+                except json.JSONDecodeError as exc:
+                    errors.append(str(exc))
+        raise RuntimeError(f"Gemma output did not contain parseable JSON ({'; '.join(errors[-2:])}): {output_text[:400]}")
+
+    def _strip_json_fence(self, value: str) -> str:
+        stripped = value.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
+            stripped = re.sub(r"\s*```$", "", stripped)
+        return stripped.strip()
+
+    def _balanced_json_object(self, value: str) -> str | None:
+        start = value.find("{")
+        if start < 0:
+            return None
+        depth = 0
+        in_string = False
+        escaped = False
+        for index, char in enumerate(value[start:], start=start):
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return value[start : index + 1]
+        return None
+
+    def _repair_json_object(self, value: str) -> str:
+        repaired = re.sub(r",(\s*[}\]])", r"\1", value)
+        repaired = re.sub(r"([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:", r'\1"\2":', repaired)
+        repaired = re.sub(r"\bTrue\b", "true", repaired)
+        repaired = re.sub(r"\bFalse\b", "false", repaired)
+        repaired = re.sub(r"\bNone\b", "null", repaired)
+        return repaired

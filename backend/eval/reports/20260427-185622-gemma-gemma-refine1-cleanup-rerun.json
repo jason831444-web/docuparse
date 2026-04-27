@@ -1,0 +1,870 @@
+{
+  "label": "gemma-refine1-cleanup-rerun",
+  "mode": "gemma",
+  "backend_url": "http://localhost:8001",
+  "generated_at": "2026-04-27T18:56:22.197963",
+  "spec_version": 1,
+  "documents_total": 10,
+  "average_score": 97.2,
+  "status_counts": {
+    "ready": 6,
+    "needs_review": 4
+  },
+  "severity_counts": {
+    "warn": 4
+  },
+  "issue_counts": {
+    "summary_repetitive": 4
+  },
+  "problem_documents": [
+    {
+      "id": "instructional_memo_md",
+      "filename": "workshop_facilitation_memo.md",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
+    },
+    {
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
+    },
+    {
+      "id": "invoice_csv",
+      "filename": "april_consulting_invoice.csv",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
+    },
+    {
+      "id": "invoice_xlsx",
+      "filename": "studio_services_invoice.xlsx",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
+    },
+    {
+      "id": "syllabus_pdf",
+      "filename": "syllabus_system_fundamentals.pdf",
+      "score": 100,
+      "issue_codes": []
+    }
+  ],
+  "results": [
+    {
+      "id": "syllabus_pdf",
+      "filename": "syllabus_system_fundamentals.pdf",
+      "format": "pdf",
+      "expectations": {
+        "expected_profiles": [
+          "syllabus",
+          "course_guide"
+        ],
+        "expected_categories": [
+          "course_guide",
+          "syllabus"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "title_forbidden_patterns": [
+          "^Page\\b",
+          "^Course Description:"
+        ],
+        "summary_keywords": [
+          "course",
+          "semester",
+          "instructor",
+          "materials",
+          "exam"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "ready",
+        "title": "CSE 320: System Fundamentals II (L01, Stark) Syllabus",
+        "broad_type": "document",
+        "category": "syllabus",
+        "profile": "syllabus",
+        "subtype": "syllabus",
+        "summary_short": "Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus. Key details: Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus; CSE 320: System Fundamentals II (L01, Stark) Syllabus.",
+        "summary_detailed": "This is a syllabus titled CSE 320: System Fundamentals II (L01, Stark) Syllabus. It mainly covers Course guide with title, semester, instructor, materials, policies, and exam dates and Syllabus for CSE 320: System Fundamentals II (L01, Stark. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review material and resource requirements.",
+          "Review grading and exam-related requirements.",
+          "Review attendance and missed-work expectations."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus",
+          "CSE 320: System Fundamentals II (L01, Stark) Syllabus",
+          "CSE 320",
+          "Course guide with title, semester, instructor, materials, policies, and exam dates",
+          "required materials: Required Materials: Course reader, POSIX programming reference, lab notebook",
+          "exam details: Grading: Labs 30%, Midterm 25%, Final 30%, Participation 15%., Exam Dates: Midterm October 14, 2026. Final December 16, 2026",
+          "course name: CSE 320: System Fundamentals II",
+          "Fall 2026"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "course_guide",
+          "memo",
+          "office",
+          "syllabus"
+        ],
+        "provider_chain": "pdf_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "pdf_text_extract",
+        "extraction_method": "pdf_text_extract",
+        "processing_path": "medium",
+        "review_required": false,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": "2026-10-14",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "presentation_docx",
+      "filename": "wolfie_studies_presentation_guide.docx",
+      "format": "docx",
+      "expectations": {
+        "expected_profiles": [
+          "presentation_guide",
+          "speaking_notes"
+        ],
+        "expected_categories": [
+          "presentation_guide",
+          "speaking_notes"
+        ],
+        "expected_broad_types": [
+          "memo",
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "presentation",
+          "audience",
+          "slide",
+          "speaking",
+          "rehears"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "needs_review",
+        "title": "Wolfie Studies Presentation Guide",
+        "broad_type": "memo",
+        "category": "presentation_guide",
+        "profile": "presentation_guide",
+        "subtype": "presentation_guide",
+        "summary_short": "Presentation guide for Wolfie Studies Presentation Guide. Key details: Presentation guide for Wolfie Studies Presentation Guide; Help student presenters explain research findings clearly to a mixed audience.",
+        "summary_detailed": "This is a presentation guide titled Wolfie Studies Presentation Guide. It mainly highlights Presentation guide with audience, slide flow, speaking notes, and rehearsal guidance and Help student presenters explain research findings . Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review the preparation and delivery guidance before presenting."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Presentation guide for Wolfie Studies Presentation Guide",
+          "Help student presenters explain research findings clearly to a mixed audience",
+          "Presentation guide with audience, slide flow, speaking notes, and rehearsal guidance",
+          "preparation guidance: Preparation: Rehearse the full talk twice, test embedded media, and prepare answers for likely questions., Timing: Keep the main talk to e",
+          "Faculty reviewers, invited students, and community guests",
+          "slide flow guidance: Slide Guidance: Start with the problem, show the method, then end with takeaways and next steps",
+          "speaking notes: Speaking Notes: Keep explanations plain-language, pause after each key chart, and define acronyms aloud",
+          "Audience: Faculty reviewers, invited students, and community guests"
+        ],
+        "review_focus": [],
+        "tags": [
+          "education",
+          "memo",
+          "presentation_guide"
+        ],
+        "provider_chain": "docx_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "docx_text_extract",
+        "extraction_method": "docx_text_extract",
+        "processing_path": "medium",
+        "review_required": true,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": null,
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "profile_txt",
+      "filename": "student_profile_note.txt",
+      "format": "txt",
+      "expectations": {
+        "expected_profiles": [
+          "profile_record"
+        ],
+        "expected_categories": [
+          "profile_record"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "name",
+          "id",
+          "major",
+          "age"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "needs_review",
+        "title": "Profile Note",
+        "broad_type": "document",
+        "category": "profile_record",
+        "profile": "profile_record",
+        "subtype": "education_record",
+        "summary_short": "Profile record for Profile Note. Key details: Profile record for Profile Note; identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science.",
+        "summary_detailed": "This is a profile record titled Profile Note. It brings together Profile record for Profile Note, identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science, and age: 21. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review the key identity details for accuracy."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Profile record for Profile Note",
+          "identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science",
+          "age: 21",
+          "name: Maya Patel",
+          "department: CEAS",
+          "student id: 20260143",
+          "major: Computer Science",
+          "affiliation: Undergraduate Research Program"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "education",
+          "memo",
+          "profile_record",
+          "education_record"
+        ],
+        "provider_chain": "txt_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "txt_direct",
+        "processing_path": "light",
+        "review_required": true,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": null,
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "instructional_memo_md",
+      "filename": "workshop_facilitation_memo.md",
+      "format": "md",
+      "expectations": {
+        "expected_profiles": [
+          "instructional_memo",
+          "presentation_guide"
+        ],
+        "expected_categories": [
+          "instructional_memo",
+          "presentation_guide"
+        ],
+        "expected_broad_types": [
+          "memo",
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "memo",
+          "facilitator",
+          "materials",
+          "follow-up"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "needs_review",
+        "title": "Workshop Facilitation Memo",
+        "broad_type": "memo",
+        "category": "instructional_memo",
+        "profile": "instructional_memo",
+        "subtype": "instructional_memo",
+        "summary_short": "Instructional memo for Workshop Facilitation Memo. Key details: Instructional memo for Workshop Facilitation Memo; Instructional memo with guidance, expectations, and follow-up steps.",
+        "summary_detailed": "This is an instructional memo titled Workshop Facilitation Memo. Key details include Instructional memo with guidance, expectations, and follow-up steps and Amount is missing; review before expense tracking. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review the key next steps and follow-up details."
+        ],
+        "warnings": [
+          "Amount is missing; review before expense tracking."
+        ],
+        "important_points": [
+          "Instructional memo for Workshop Facilitation Memo",
+          "Instructional memo with guidance, expectations, and follow-up steps",
+          "Amount is missing; review before expense tracking",
+          "Arrival: Arrive 30 minutes early and test the projector",
+          "Materials: Bring printed sign-in sheets, markers, and discussion cards",
+          "Review the key next steps and follow-up details",
+          "Workshop Facilitation Memo",
+          "Use this memo to prepare facilitators for the Friday onboarding workshop"
+        ],
+        "review_focus": [],
+        "tags": [
+          "food_drink",
+          "memo",
+          "repair_service",
+          "instructional_memo"
+        ],
+        "provider_chain": "md_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "md_direct",
+        "processing_path": "light",
+        "review_required": true,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": null,
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
+    },
+    {
+      "id": "repair_receipt_png",
+      "filename": "east_repair_receipt.png",
+      "format": "png",
+      "expectations": {
+        "expected_profiles": [
+          "repair_service_receipt",
+          "receipt"
+        ],
+        "expected_categories": [
+          "repair_service",
+          "repair_service_receipt",
+          "retail"
+        ],
+        "expected_broad_types": [
+          "receipt"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "receipt",
+          "repair",
+          "labor",
+          "total"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "ready",
+        "title": "East Repair Inc. receipt",
+        "broad_type": "receipt",
+        "category": "repair_service_receipt",
+        "profile": "repair_service_receipt",
+        "subtype": "repair_service_receipt",
+        "summary_short": "Receipt from East Repair Inc. Key details: Receipt from East Repair Inc; Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges.",
+        "summary_detailed": "This is a repair service receipt titled East Repair Inc. receipt. Key details include Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges and itemized lines: Front and rear brake cables 1. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "File this receipt for expense export or reimbursement records."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Receipt from East Repair Inc",
+          "Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges",
+          "itemized lines: Front and rear brake cables 100.00, New set of pedal arms 30.00, Labor 3hrs 15.00",
+          "item style: parts_and_labor",
+          "service keywords: repair, service, labor",
+          "File this receipt for expense export or reimbursement records",
+          "Tax 9.06",
+          "Total 154.06"
+        ],
+        "review_focus": [],
+        "tags": [
+          "receipt",
+          "repair_service",
+          "retail",
+          "repair_service_receipt"
+        ],
+        "provider_chain": "image_ocr_fast_path+receipt_image_fast_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "receipt_image_fast_path",
+        "extraction_method": "image_ocr_fast_path",
+        "processing_path": "medium",
+        "review_required": false,
+        "merchant_name": "East Repair Inc.",
+        "extracted_amount": "154.06",
+        "extracted_date": "2026-04-18",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "resume_json",
+      "filename": "alex_morgan_resume.json",
+      "format": "json",
+      "expectations": {
+        "expected_profiles": [
+          "resume_profile"
+        ],
+        "expected_categories": [
+          "resume_profile"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "education",
+          "experience",
+          "projects",
+          "skills"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "needs_review",
+        "title": "Alex Morgan",
+        "broad_type": "document",
+        "category": "resume_profile",
+        "profile": "resume_profile",
+        "subtype": "resume_profile",
+        "summary_short": "Resume profile for Alex Morgan. Key details: Resume profile for Alex Morgan; Resume-style document highlighting education, experience, projects, and skills.",
+        "summary_detailed": "This is a resume profile titled Alex Morgan. It brings together Resume-style document highlighting education, experience, projects, and skills and Resume profile for Alex Morgan. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review education, experience, projects, and skills for completeness."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Resume profile for Alex Morgan",
+          "Resume-style document highlighting education, experience, projects, and skills",
+          "Alex Morgan",
+          "section hints: education, experience, projects",
+          "contact links: https://github.com/alexmorgan, https://linkedin.com/in/alexmorgan",
+          "Review education, experience, projects, and skills for completeness",
+          "technical skills[3]: React",
+          "technical skills[0]: Python"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "memo",
+          "profile_record",
+          "resume_profile"
+        ],
+        "provider_chain": "json_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "json_direct",
+        "processing_path": "light",
+        "review_required": true,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": null,
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "utility_bill_html",
+      "filename": "harbor_power_statement.html",
+      "format": "html",
+      "expectations": {
+        "expected_profiles": [
+          "utility_bill"
+        ],
+        "expected_categories": [
+          "utilities",
+          "utility_bill"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "provider",
+          "billing",
+          "due",
+          "amount"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "ready",
+        "title": "Harbor Power Monthly Statement",
+        "broad_type": "document",
+        "category": "utility_bill",
+        "profile": "utility_bill",
+        "subtype": "utility_bill",
+        "summary_short": "Utility bill from Harbor Power Monthly Statement. Key details: Utility bill from Harbor Power Monthly Statement; Utility bill or account statement showing provider, billing period, due date, and amount due.",
+        "summary_detailed": "This is a utility bill titled Harbor Power Monthly Statement. Key details include Utility bill or account statement showing provider, billing period, due date, and amount due and $118.42 USD. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Pay or schedule this bill by 2026-04-21."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Utility bill from Harbor Power Monthly Statement",
+          "Utility bill or account statement showing provider, billing period, due date, and amount due",
+          "$118.42 USD",
+          "2026-04-21",
+          "Harbor Power Monthly Statement",
+          "March 1, 2026 - March 31, 2026",
+          "statement style: utility_bill",
+          "billing keywords: provider, billing period, amount due"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "review",
+          "time-sensitive",
+          "utilities",
+          "utility_bill"
+        ],
+        "provider_chain": "html_text_extract+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "html_text_extract",
+        "processing_path": "light",
+        "review_required": false,
+        "merchant_name": null,
+        "extracted_amount": "118.42",
+        "extracted_date": "2026-03-01",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [],
+      "score": 100
+    },
+    {
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "format": "xml",
+      "expectations": {
+        "expected_profiles": [
+          "meeting_notice"
+        ],
+        "expected_categories": [
+          "meeting_notice"
+        ],
+        "expected_broad_types": [
+          "notice"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "meeting",
+          "purpose",
+          "date",
+          "location"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "ready",
+        "title": "Faculty Forum Meeting Notice",
+        "broad_type": "notice",
+        "category": "meeting_notice",
+        "profile": "meeting_notice",
+        "subtype": "meeting_notice",
+        "summary_short": "Meeting notice for Faculty Forum Meeting Notice. Key details: Meeting notice for Faculty Forum Meeting Notice; title: Faculty Forum Meeting Notice.",
+        "summary_detailed": "This is a meeting notice titled Faculty Forum Meeting Notice. Key details include Meeting notice with time, location, purpose, and follow-up details. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review the requested preparation details before the meeting."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Meeting notice for Faculty Forum Meeting Notice",
+          "title: Faculty Forum Meeting Notice",
+          "Meeting notice with time, location, purpose, and follow-up details",
+          "line: Location: Administration Building Room 204",
+          "2026-04-29",
+          "Review the requested preparation details before the meeting",
+          "line: Faculty Forum Meeting Notice",
+          "line: Meeting Date: April 29, 2026 at 2:00 PM"
+        ],
+        "review_focus": [],
+        "tags": [
+          "notice",
+          "meeting_notice"
+        ],
+        "provider_chain": "xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "xml_direct",
+        "processing_path": "light",
+        "review_required": false,
+        "merchant_name": null,
+        "extracted_amount": null,
+        "extracted_date": "2026-04-29",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
+    },
+    {
+      "id": "invoice_csv",
+      "filename": "april_consulting_invoice.csv",
+      "format": "csv",
+      "expectations": {
+        "expected_profiles": [
+          "invoice"
+        ],
+        "expected_categories": [
+          "invoice"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "invoice",
+          "vendor",
+          "due",
+          "amount"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "ready",
+        "title": "Invoice Number | INV-2048",
+        "broad_type": "document",
+        "category": "invoice",
+        "profile": "invoice",
+        "subtype": "invoice",
+        "summary_short": "Invoice for Invoice Number | INV-2048. Key details: Invoice for Invoice Number | INV-2048; Invoice document with vendor, billing details, amount due, and payment timing information.",
+        "summary_detailed": "This is an invoice titled Invoice Number | INV-2048. Key details include Invoice document with vendor, billing details, amount due, and payment timing information and Invoice for Invoice Number | INV-2048. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review deadlines and required submission details.",
+          "Review billed amounts and line-item accuracy before paying."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Invoice for Invoice Number | INV-2048",
+          "Invoice document with vendor, billing details, amount due, and payment timing information",
+          "invoice number: INV-2048",
+          "billing keywords: invoice, vendor, invoice date",
+          "Review deadlines and required submission details",
+          "Invoice Number | INV-2048",
+          "Amount Due | 1500.00",
+          "Review billed amounts and line-item accuracy before paying"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "retail",
+          "review",
+          "time-sensitive",
+          "invoice"
+        ],
+        "provider_chain": "csv_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "structured_text_path",
+        "extraction_method": "csv_direct",
+        "processing_path": "light",
+        "review_required": false,
+        "merchant_name": null,
+        "extracted_amount": "1500.00",
+        "extracted_date": "2026-04-05",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
+    },
+    {
+      "id": "invoice_xlsx",
+      "filename": "studio_services_invoice.xlsx",
+      "format": "xlsx",
+      "expectations": {
+        "expected_profiles": [
+          "invoice"
+        ],
+        "expected_categories": [
+          "invoice"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "invoice",
+          "vendor",
+          "due",
+          "total"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "ready",
+        "title": "Vendor  Studio North Services receipt",
+        "broad_type": "document",
+        "category": "invoice",
+        "profile": "invoice",
+        "subtype": "invoice",
+        "summary_short": "Invoice for Vendor Studio North Services receipt. Key details: Invoice for Vendor Studio North Services receipt; Invoice document with vendor, billing details, amount due, and payment timing information.",
+        "summary_detailed": "This is an invoice titled Vendor Studio North Services receipt. Key details include Invoice document with vendor, billing details, amount due, and payment timing information, Invoice for Vendor Studio North Services receipt,. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
+        "action_items": [
+          "Review deadlines and required submission details.",
+          "Review billed amounts and line-item accuracy before paying."
+        ],
+        "warnings": [],
+        "important_points": [
+          "Invoice for Vendor Studio North Services receipt",
+          "Invoice document with vendor, billing details, amount due, and payment timing information",
+          "invoice number: Invoice",
+          "billing keywords: invoice, vendor, invoice date",
+          "Review deadlines and required submission details",
+          "Invoice | ST-9932",
+          "Tax | 67.20",
+          "Sheet: Invoice"
+        ],
+        "review_focus": [],
+        "tags": [
+          "document",
+          "receipt",
+          "retail",
+          "review",
+          "time-sensitive",
+          "invoice"
+        ],
+        "provider_chain": "xlsx_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
+        "route": "xlsx_text_extract",
+        "extraction_method": "xlsx_text_extract",
+        "processing_path": "medium",
+        "review_required": false,
+        "merchant_name": "Vendor  Studio North Services",
+        "extracted_amount": "907.20",
+        "extracted_date": "2026-04-10",
+        "interpretation_provider_chain": [
+          "heuristic_interpretation",
+          "ai_interpretation_gemma_fallback_small",
+          "ai_summary_refinement"
+        ],
+        "refinement_status": "ai_interpretation_gemma_fallback_small"
+      },
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
+    }
+  ],
+  "comparison": {
+    "previous_mode": "gemma",
+    "current_mode": "gemma",
+    "previous_average_score": 90.9,
+    "current_average_score": 97.2,
+    "average_score_delta": 6.3,
+    "improved_documents": [
+      {
+        "id": "instructional_memo_md",
+        "delta": 7
+      },
+      {
+        "id": "repair_receipt_png",
+        "delta": 21
+      },
+      {
+        "id": "utility_bill_html",
+        "delta": 14
+      },
+      {
+        "id": "meeting_notice_xml",
+        "delta": 7
+      },
+      {
+        "id": "invoice_csv",
+        "delta": 7
+      },
+      {
+        "id": "invoice_xlsx",
+        "delta": 7
+      }
+    ],
+    "regressed_documents": [],
+    "unchanged_documents": [
+      "syllabus_pdf",
+      "presentation_docx",
+      "profile_txt",
+      "resume_json"
+    ],
+    "previous_issue_counts": {
+      "summary_repetitive": 6,
+      "summary_fragment_dump": 6,
+      "action_item_weak": 1
+    },
+    "current_issue_counts": {
+      "summary_repetitive": 4
+    }
+  }
+}

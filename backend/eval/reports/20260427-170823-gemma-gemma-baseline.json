@@ -1,0 +1,460 @@
+{
+  "label": "gemma-baseline",
+  "mode": "gemma",
+  "backend_url": "http://localhost:8001",
+  "generated_at": "2026-04-27T17:08:23.401156",
+  "spec_version": 1,
+  "documents_total": 10,
+  "average_score": 82.0,
+  "status_counts": {
+    "failed": 10
+  },
+  "severity_counts": {
+    "fail": 10
+  },
+  "issue_counts": {
+    "runtime_failure": 10
+  },
+  "problem_documents": [
+    {
+      "id": "syllabus_pdf",
+      "filename": "syllabus_system_fundamentals.pdf",
+      "score": 82,
+      "issue_codes": [
+        "runtime_failure"
+      ]
+    },
+    {
+      "id": "presentation_docx",
+      "filename": "wolfie_studies_presentation_guide.docx",
+      "score": 82,
+      "issue_codes": [
+        "runtime_failure"
+      ]
+    },
+    {
+      "id": "profile_txt",
+      "filename": "student_profile_note.txt",
+      "score": 82,
+      "issue_codes": [
+        "runtime_failure"
+      ]
+    },
+    {
+      "id": "instructional_memo_md",
+      "filename": "workshop_facilitation_memo.md",
+      "score": 82,
+      "issue_codes": [
+        "runtime_failure"
+      ]
+    },
+    {
+      "id": "repair_receipt_png",
+      "filename": "east_repair_receipt.png",
+      "score": 82,
+      "issue_codes": [
+        "runtime_failure"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "id": "syllabus_pdf",
+      "filename": "syllabus_system_fundamentals.pdf",
+      "format": "pdf",
+      "expectations": {
+        "expected_profiles": [
+          "syllabus",
+          "course_guide"
+        ],
+        "expected_categories": [
+          "course_guide",
+          "syllabus"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "title_forbidden_patterns": [
+          "^Page\\b",
+          "^Course Description:"
+        ],
+        "summary_keywords": [
+          "course",
+          "semester",
+          "instructor",
+          "materials",
+          "exam"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)"
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "presentation_docx",
+      "filename": "wolfie_studies_presentation_guide.docx",
+      "format": "docx",
+      "expectations": {
+        "expected_profiles": [
+          "presentation_guide",
+          "speaking_notes"
+        ],
+        "expected_categories": [
+          "presentation_guide",
+          "speaking_notes"
+        ],
+        "expected_broad_types": [
+          "memo",
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "presentation",
+          "audience",
+          "slide",
+          "speaking",
+          "rehears"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)"
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "profile_txt",
+      "filename": "student_profile_note.txt",
+      "format": "txt",
+      "expectations": {
+        "expected_profiles": [
+          "profile_record"
+        ],
+        "expected_categories": [
+          "profile_record"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "name",
+          "id",
+          "major",
+          "age"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "failed",
+        "error": "HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)"
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "instructional_memo_md",
+      "filename": "workshop_facilitation_memo.md",
+      "format": "md",
+      "expectations": {
+        "expected_profiles": [
+          "instructional_memo",
+          "presentation_guide"
+        ],
+        "expected_categories": [
+          "instructional_memo",
+          "presentation_guide"
+        ],
+        "expected_broad_types": [
+          "memo",
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "memo",
+          "facilitator",
+          "materials",
+          "follow-up"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: HTTPConnectionPool(host='localhost', port=8001): Read timed out. (read timeout=60)"
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "repair_receipt_png",
+      "filename": "east_repair_receipt.png",
+      "format": "png",
+      "expectations": {
+        "expected_profiles": [
+          "repair_service_receipt",
+          "receipt"
+        ],
+        "expected_categories": [
+          "repair_service",
+          "repair_service_receipt",
+          "retail"
+        ],
+        "expected_broad_types": [
+          "receipt"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "receipt",
+          "repair",
+          "labor",
+          "total"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "failed",
+        "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "resume_json",
+      "filename": "alex_morgan_resume.json",
+      "format": "json",
+      "expectations": {
+        "expected_profiles": [
+          "resume_profile"
+        ],
+        "expected_categories": [
+          "resume_profile"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "education",
+          "experience",
+          "projects",
+          "skills"
+        ],
+        "require_action_items": false
+      },
+      "actual": {
+        "status": "failed",
+        "error": "Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma.",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma."
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "utility_bill_html",
+      "filename": "harbor_power_statement.html",
+      "format": "html",
+      "expectations": {
+        "expected_profiles": [
+          "utility_bill"
+        ],
+        "expected_categories": [
+          "utilities",
+          "utility_bill"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "provider",
+          "billing",
+          "due",
+          "amount"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma.",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma."
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "format": "xml",
+      "expectations": {
+        "expected_profiles": [
+          "meeting_notice"
+        ],
+        "expected_categories": [
+          "meeting_notice"
+        ],
+        "expected_broad_types": [
+          "notice"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "meeting",
+          "purpose",
+          "date",
+          "location"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma.",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma."
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "invoice_csv",
+      "filename": "april_consulting_invoice.csv",
+      "format": "csv",
+      "expectations": {
+        "expected_profiles": [
+          "invoice"
+        ],
+        "expected_categories": [
+          "invoice"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "invoice",
+          "vendor",
+          "due",
+          "amount"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma.",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma."
+        }
+      ],
+      "score": 82
+    },
+    {
+      "id": "invoice_xlsx",
+      "filename": "studio_services_invoice.xlsx",
+      "format": "xlsx",
+      "expectations": {
+        "expected_profiles": [
+          "invoice"
+        ],
+        "expected_categories": [
+          "invoice"
+        ],
+        "expected_broad_types": [
+          "document"
+        ],
+        "generic_not_allowed": true,
+        "summary_keywords": [
+          "invoice",
+          "vendor",
+          "due",
+          "total"
+        ],
+        "require_action_items": true
+      },
+      "actual": {
+        "status": "failed",
+        "error": "Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma.",
+        "provider_chain": null,
+        "title": null
+      },
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "runtime_failure",
+          "message": "Gemma API evaluation failed: Could not reach backend at http://localhost:8001. Start the API server before running --mode gemma."
+        }
+      ],
+      "score": 82
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 # DocuParse Quality Evaluation Harness
 
 This evaluation harness generates a representative local corpus, runs each
-document through the current DocuParse pipeline, scores the output quality, and
-produces both JSON and Markdown reports.
+document through DocuParse, scores the output quality, and produces both JSON
+and Markdown reports.
 
 Use it to:
 
@@ -14,9 +14,20 @@ Typical flow:
 
 ```bash
 cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
-./.venv/bin/python scripts/run_quality_eval.py --label baseline
+./.venv/bin/python scripts/run_quality_eval.py --mode fallback --label baseline
 # make a focused refinement
-./.venv/bin/python scripts/run_quality_eval.py --label refined --compare-to eval/reports/latest.json
+./.venv/bin/python scripts/run_quality_eval.py --mode fallback --label refined --compare-to eval/reports/latest-fallback.json
+```
+
+Gemma-mode flow:
+
+```bash
+cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
+./.venv/bin/python scripts/run_quality_eval.py \
+  --mode gemma \
+  --backend-url http://localhost:8001 \
+  --label gemma-check \
+  --compare-to eval/reports/latest-gemma.json
 ```
 
 The harness stores:
@@ -29,3 +40,54 @@ The expectations are intentionally coarse. They do not hardcode exact text;
 instead they define quality signals such as expected profiles, broad types,
 keyword coverage, and anti-patterns to avoid.
 
+## Modes
+
+### `--mode fallback`
+
+Runs the representative corpus through the in-process evaluation path. This is
+fast and useful for regression checks even when Gemma is unavailable.
+
+### `--mode gemma`
+
+Runs the representative corpus through the live backend API:
+
+1. uploads each generated evaluation document to `/api/documents/upload`
+2. polls `/api/documents/{id}` until processing completes
+3. verifies the final provider chain actually contains Gemma interpretation
+4. scores the final user-facing output
+
+Gemma mode is intentionally strict:
+
+- it fails if Gemma mode is requested but provider-chain evidence does not show
+  Gemma participation
+- it warns on fallback-like summaries, weak important points, copied-looking
+  action items, or under-explained detailed summaries
+
+### Gemma mode prerequisites
+
+Before running Gemma mode, make sure:
+
+- Postgres is running
+- the backend API is running
+- Gemma is configured, for example with `GEMMA_MODEL_DIR` or
+  `HUGGINGFACE_TOKEN`
+- the backend is actually using Gemma interpretation rather than the
+  unavailable fallback path
+
+Example:
+
+```bash
+cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
+source .venv/bin/activate
+export GEMMA_MODEL_DIR=/Users/yoonjaeseong/Desktop/models/gemma-2-2b-it
+export AI_INTERPRETATION_PROVIDER=gemma
+export AI_INTERPRETATION_FORCE_SMALL_MODEL=true
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+Then, in another shell:
+
+```bash
+cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
+./.venv/bin/python scripts/run_quality_eval.py --mode gemma --backend-url http://localhost:8001 --label gemma-local
+```
