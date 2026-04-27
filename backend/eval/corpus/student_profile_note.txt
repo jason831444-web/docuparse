@@ -1,0 +1,6 @@
+Name: Maya Patel
+Student ID: 20260143
+Major: Computer Science
+Age: 21
+Department: CEAS
+Affiliation: Undergraduate Research Program

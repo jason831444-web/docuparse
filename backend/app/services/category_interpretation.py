@@ -51,6 +51,23 @@ class CategoryInterpretationService:
                     reasons=["Receipt text includes service/labor/parts signals."],
                     confidence=0.89,
                 )
+            if self._looks_like_invoice(lowered):
+                return CategoryInterpretation(
+                    category="invoice",
+                    profile="invoice",
+                    subtype="invoice",
+                    title_hint=title_hint or self._invoice_title(text),
+                    summary_hint="Invoice document with vendor, billing details, amount due, and payment timing information.",
+                    key_fields={
+                        "invoice_number": self._invoice_number(text),
+                        "billing_keywords": self._keyword_hits(
+                            lowered,
+                            ["invoice", "vendor", "bill to", "invoice date", "due date", "amount due", "total due"],
+                        ),
+                    },
+                    reasons=["Receipt-style parsing found invoice-specific billing fields such as invoice number, vendor, or amount due."],
+                    confidence=0.85,
+                )
             if self._looks_like_utility_bill(lowered):
                 return CategoryInterpretation(
                     category="utilities",
@@ -88,6 +105,42 @@ class CategoryInterpretationService:
                 confidence=0.9,
             )
 
+        if self._looks_like_utility_bill(lowered):
+            return CategoryInterpretation(
+                category="utility_bill",
+                profile="utility_bill",
+                subtype="utility_bill",
+                title_hint=title_hint or self._bill_title(text),
+                summary_hint="Utility bill or account statement showing provider, billing period, due date, and amount due.",
+                key_fields={
+                    "statement_style": "utility_bill",
+                    "billing_keywords": self._keyword_hits(
+                        lowered,
+                        ["provider", "billing period", "service period", "amount due", "due date", "account number"],
+                    ),
+                },
+                reasons=["Detected provider, billing-period, due-date, or amount-due signals consistent with a utility bill."],
+                confidence=0.86,
+            )
+
+        if self._looks_like_invoice(lowered):
+            return CategoryInterpretation(
+                category="invoice",
+                profile="invoice",
+                subtype="invoice",
+                title_hint=title_hint or self._invoice_title(text),
+                summary_hint="Invoice document with vendor, billing details, amount due, and payment timing information.",
+                key_fields={
+                    "invoice_number": self._invoice_number(text),
+                    "billing_keywords": self._keyword_hits(
+                        lowered,
+                        ["invoice", "vendor", "bill to", "invoice date", "due date", "amount due", "total due"],
+                    ),
+                },
+                reasons=["Detected invoice-specific billing fields such as invoice number, vendor, due date, or amount due."],
+                confidence=0.87,
+            )
+
         if self._looks_like_syllabus(lowered):
             course_title = self._course_title(text) or title_hint or "Course Guide"
             return CategoryInterpretation(
@@ -123,17 +176,6 @@ class CategoryInterpretationService:
                 confidence=0.85,
             )
 
-        if self._looks_like_meeting_notice(lowered):
-            return CategoryInterpretation(
-                category="meeting_notice",
-                profile="meeting_notice",
-                subtype="meeting_notice",
-                title_hint=title_hint,
-                summary_hint="Meeting notice with time, location, purpose, and follow-up details.",
-                reasons=["Detected meeting/date/location language."],
-                confidence=0.76,
-            )
-
         if document.document_type == DocumentType.memo and self._looks_like_instructional_memo(lowered):
             return CategoryInterpretation(
                 category="instructional_memo",
@@ -143,6 +185,17 @@ class CategoryInterpretationService:
                 summary_hint="Instructional memo with guidance, expectations, and follow-up steps.",
                 reasons=["Memo text reads like instructions or guidance rather than an alert."],
                 confidence=0.74,
+            )
+
+        if self._looks_like_meeting_notice(lowered):
+            return CategoryInterpretation(
+                category="meeting_notice",
+                profile="meeting_notice",
+                subtype="meeting_notice",
+                title_hint=title_hint,
+                summary_hint="Meeting notice with time, location, purpose, and follow-up details.",
+                reasons=["Detected meeting/date/location language."],
+                confidence=0.76,
             )
 
         return CategoryInterpretation(
@@ -155,11 +208,12 @@ class CategoryInterpretationService:
         )
 
     def _meaningful_title(self, current: str | None, text: str) -> str | None:
-        if current and self._score_title_candidate(current.strip(), 0, text) > 0:
-            return current
+        cleaned_current = self._clean_title_candidate(current)
+        if cleaned_current and self._score_title_candidate(cleaned_current, 0, text) > 0:
+            return cleaned_current
         candidates: list[tuple[int, str]] = []
         for index, line in enumerate(text.splitlines()[:12]):
-            cleaned = re.sub(r"\s+", " ", line).strip(" :-")
+            cleaned = self._clean_title_candidate(line)
             if not cleaned:
                 continue
             score = self._score_title_candidate(cleaned, index, text)
@@ -171,7 +225,7 @@ class CategoryInterpretationService:
         return candidates[0][1]
 
     def _course_title(self, text: str) -> str | None:
-        lines = [re.sub(r"\s+", " ", line).strip(" :-") for line in text.splitlines()[:12]]
+        lines = [self._clean_title_candidate(line) for line in text.splitlines()[:12]]
         candidates: list[tuple[int, str]] = []
         for index, cleaned in enumerate(lines):
             lowered = cleaned.lower()
@@ -192,6 +246,16 @@ class CategoryInterpretationService:
             return None
         candidates.sort(key=lambda item: (-item[0], len(item[1])))
         return candidates[0][1]
+
+    def _clean_title_candidate(self, value: str | None) -> str:
+        cleaned = re.sub(r"\s+", " ", value or "").strip(" :-")
+        cleaned = re.sub(
+            r"^(?:title|document title|heading|subject|name|line)\s*:\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        return cleaned.strip(" :-")
 
     def _course_code(self, text: str) -> str | None:
         match = re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", text)
@@ -262,7 +326,42 @@ class CategoryInterpretationService:
         return sum(signal in lowered for signal in signals) >= 2
 
     def _looks_like_utility_bill(self, lowered: str) -> bool:
-        signals = ["amount due", "balance due", "utility", "billing period", "service period", "pay by", "due date", "account number"]
+        utility_signals = [
+            "utility",
+            "billing period",
+            "service period",
+            "account number",
+            "electric",
+            "electricity",
+            "water",
+            "internet",
+            "gas service",
+            "power",
+        ]
+        billing_signals = [
+            "amount due",
+            "balance due",
+            "pay by",
+            "due date",
+            "provider",
+            "statement",
+        ]
+        utility_hits = sum(signal in lowered for signal in utility_signals)
+        billing_hits = sum(signal in lowered for signal in billing_signals)
+        return utility_hits >= 1 and (utility_hits + billing_hits) >= 2
+
+    def _looks_like_invoice(self, lowered: str) -> bool:
+        signals = [
+            "invoice",
+            "invoice number",
+            "invoice #",
+            "vendor",
+            "bill to",
+            "invoice date",
+            "due date",
+            "amount due",
+            "total due",
+        ]
         return sum(signal in lowered for signal in signals) >= 2
 
     def _looks_like_syllabus(self, lowered: str) -> bool:
@@ -282,9 +381,63 @@ class CategoryInterpretationService:
         return sum(signal in lowered for signal in signals) >= 3
 
     def _looks_like_meeting_notice(self, lowered: str) -> bool:
-        signals = ["meeting", "agenda", "location", "room", "join us", "attend", "minutes"]
-        return sum(signal in lowered for signal in signals) >= 2
+        patterns = [
+            r"\bmeeting\b",
+            r"\bagenda\b",
+            r"\bmeeting date\b",
+            r"\blocation\b",
+            r"\broom\b",
+            r"\bjoin us\b",
+            r"\bzoom\b",
+            r"\bteams\b",
+        ]
+        hits = sum(bool(re.search(pattern, lowered)) for pattern in patterns)
+        return hits >= 2 or (
+            bool(re.search(r"\bmeeting\b", lowered))
+            and bool(re.search(r"\b(location|room|agenda|date|zoom|teams)\b", lowered))
+        )
 
     def _looks_like_instructional_memo(self, lowered: str) -> bool:
-        signals = ["guidance", "instructions", "please follow", "review the following", "steps", "prepare"]
+        signals = [
+            "guidance",
+            "instructions",
+            "please follow",
+            "review the following",
+            "steps",
+            "prepare",
+            "arrival",
+            "materials",
+            "follow-up",
+            "workshop",
+            "facilitator",
+        ]
         return sum(signal in lowered for signal in signals) >= 2
+
+    def _bill_title(self, text: str) -> str | None:
+        for line in text.splitlines()[:8]:
+            cleaned = self._clean_title_candidate(line)
+            lowered = cleaned.lower()
+            if cleaned and any(keyword in lowered for keyword in ["statement", "bill", "utility", "power", "electric", "water", "internet"]):
+                return cleaned
+        return "Utility Bill"
+
+    def _invoice_title(self, text: str) -> str | None:
+        invoice_number = self._invoice_number(text)
+        vendor = None
+        for line in text.splitlines()[:10]:
+            cleaned = self._clean_title_candidate(line)
+            lowered = cleaned.lower()
+            if lowered.startswith("vendor"):
+                vendor = cleaned.split(":", 1)[-1].strip(" |:-")
+                break
+        if invoice_number and vendor:
+            return f"Invoice {invoice_number} from {vendor}"
+        if invoice_number:
+            return f"Invoice {invoice_number}"
+        if vendor:
+            return f"{vendor} Invoice"
+        return "Invoice"
+
+    def _invoice_number(self, text: str) -> str | None:
+        match = re.search(r"\b(?:invoice(?:\s+number)?|invoice\s*#)\s*[:|]?\s*([A-Z0-9-]{4,})", text, flags=re.IGNORECASE)
+        return match.group(1) if match else None

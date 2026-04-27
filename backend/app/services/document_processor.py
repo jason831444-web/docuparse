@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -103,7 +104,7 @@ class DocumentProcessor:
             document.document_type = self._refined_document_type(document.document_type, interpretation)
             if interpretation.summary_hint:
                 document.summary = interpretation.summary_hint
-            document.tags = self._merge_tags(document.tags, interpretation)
+            document.tags = self._merge_tags(document.tags, interpretation, document.document_type)
             document.ai_extraction_notes = self._notes(
                 (ingestion_notes + quality_notes + ai_result.extraction_notes)
                 + self._interpretation_notes(interpretation)
@@ -235,9 +236,11 @@ class DocumentProcessor:
     def _apply_title_hint(self, current_title: str | None, interpretation: CategoryInterpretation) -> str | None:
         if not interpretation.title_hint:
             return current_title
-        if not current_title or current_title.lower() in {"untitled document", "profile note"}:
+        if not current_title or current_title.lower() in {"untitled document", "profile note", "syllabus", "invoice", "statement"}:
             return interpretation.title_hint
         if current_title.lower().startswith(("page ", "slide ")):
+            return interpretation.title_hint
+        if "|" in current_title or re.match(r"^(title|name|invoice(?: number)?|vendor)\s*[:|]", current_title, flags=re.IGNORECASE):
             return interpretation.title_hint
         if interpretation.profile in {"profile_record", "resume_profile"} and current_title != interpretation.title_hint:
             return interpretation.title_hint
@@ -273,9 +276,28 @@ class DocumentProcessor:
             return type(current_type).receipt
         return current_type
 
-    def _merge_tags(self, current_tags: list[str], interpretation: CategoryInterpretation) -> list[str]:
+    def _merge_tags(self, current_tags: list[str], interpretation: CategoryInterpretation, document_type) -> list[str]:
         tags = list(current_tags or [])
         for value in [interpretation.profile, interpretation.category, interpretation.subtype]:
             if value and value not in {"generic_document", "other", "document", "notice"}:
                 tags.append(value)
-        return list(dict.fromkeys(tags))
+        cleaned = list(dict.fromkeys(tag for tag in tags if tag))
+        if interpretation.profile and interpretation.profile not in {"generic_document", "other"}:
+            conflicting = {
+                "syllabus": {"notice", "generic_document", "other"},
+                "course_guide": {"notice", "generic_document", "other"},
+                "presentation_guide": {"notice", "generic_document", "other"},
+                "speaking_notes": {"notice", "generic_document", "other"},
+                "resume_profile": {"notice", "generic_document", "other"},
+                "profile_record": {"notice", "generic_document", "other"},
+                "repair_service_receipt": {"utilities", "notice", "generic_document", "other"},
+                "utility_bill": {"repair_service", "generic_document", "other"},
+                "meeting_notice": {"generic_document", "other"},
+                "instructional_memo": {"notice", "generic_document", "other"},
+            }
+            blocked = conflicting.get(interpretation.profile, {"generic_document", "other"})
+            cleaned = [tag for tag in cleaned if tag not in blocked]
+        broad_tag = getattr(document_type, "value", str(document_type))
+        if broad_tag in {"receipt", "notice", "document", "memo", "other"} and broad_tag not in cleaned:
+            cleaned.insert(0, broad_tag)
+        return cleaned

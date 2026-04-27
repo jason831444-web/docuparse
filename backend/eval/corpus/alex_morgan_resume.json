@@ -1,0 +1,26 @@
+{
+  "name": "Alex Morgan",
+  "title": "Software Engineer",
+  "education": [
+    "B.S. Computer Science, Stony Brook University, May 2027, GPA 3.8"
+  ],
+  "experience": [
+    "Backend engineering intern at Harbor Labs building API services",
+    "Research assistant on document understanding workflows"
+  ],
+  "projects": [
+    "Distributed notes application",
+    "OCR-assisted document parser"
+  ],
+  "technical_skills": [
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "React",
+    "Docker"
+  ],
+  "contact_links": [
+    "https://github.com/alexmorgan",
+    "https://linkedin.com/in/alexmorgan"
+  ]
+}

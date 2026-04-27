@@ -45,6 +45,8 @@ class DocumentWorkflowEnrichmentService:
             result = self._resume_profile(document, text, mode)
         elif profile in {"presentation_guide", "speaking_notes"}:
             result = self._presentation_guide(document, text, mode)
+        elif profile == "invoice":
+            result = self._invoice(document, text, mode)
         elif profile == "meeting_notice":
             result = self._meeting_notice(document, text, mode)
         elif profile == "profile_record":
@@ -424,24 +426,28 @@ class DocumentWorkflowEnrichmentService:
         cleaned = [point for point in cleaned if point]
         if not cleaned:
             return None
+        cleaned = self._compress_neighboring_points(cleaned)
+        if not cleaned:
+            return None
         lead = self._highlight_intro(mode, profile)
         if len(cleaned) == 1:
-            return f"{lead} {cleaned[0]}"
+            return self._safe_sentence(f"{lead} {cleaned[0]}")
         if len(cleaned) == 2:
-            return f"{lead} {cleaned[0]}, along with {cleaned[1]}."
-        return f"{lead} {cleaned[0]}, {cleaned[1]}, and {cleaned[2]}."
+            return self._safe_sentence(f"{lead} {cleaned[0]}, along with {cleaned[1]}")
+        joined = self._join_phrases(cleaned[:3])
+        return self._safe_sentence(f"{lead} {joined}")
 
     def _highlight_intro(self, mode: str, profile: str) -> str:
         key = profile if profile != "standard" else mode
         if key in {"syllabus", "course_guide"}:
-            return "It centers on"
+            return "It mainly covers"
         if key in {"presentation_guide", "speaking_notes"}:
-            return "It focuses on"
+            return "It mainly highlights"
         if key in {"resume_profile", "profile_record"}:
-            return "It brings forward"
+            return "It brings together"
         if key in {"receipt", "repair_service_receipt", "utility_bill", "invoice"}:
             return "It highlights"
-        return "It focuses on"
+        return "It highlights"
 
     def _finalize_action_items(self, items: list[str], text: str, mode: str, profile: str) -> list[str]:
         normalized = [self._normalize_action_item(item, mode, profile) for item in items]
@@ -455,17 +461,26 @@ class DocumentWorkflowEnrichmentService:
         cleaned = self._clean_text_fragment(item)
         if not cleaned:
             return None
+        cleaned = re.sub(r"^(?:line:\s*)+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^(?:action|next step|next steps)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.strip()
         lowered = cleaned.lower()
-        if len(cleaned.split()) > 14 or self._looks_like_body_fragment(cleaned):
+        if len(cleaned.split()) > 12 or self._looks_like_body_fragment(cleaned):
             if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
                 return "Review the document for deadlines or required submission steps."
             if any(term in lowered for term in ["pay", "amount due", "balance due"]):
                 return "Review the payment details and timing before taking action."
             if any(term in lowered for term in ["policy", "attendance", "grading", "materials"]):
-                return "Review the key policy or requirement details called out in the document."
+                return self._policy_review_prompt(lowered, mode, profile)
             if any(term in lowered for term in ["rehearse", "practice", "slide", "speaker", "talk"]):
                 return "Review the preparation and delivery guidance before presenting."
             return None
+        if profile == "meeting_notice" and any(term in lowered for term in ["bring", "prepare", "questions", "feedback", "materials"]):
+            return "Review the requested preparation details before the meeting."
+        if any(term in lowered for term in ["policy", "attendance", "missed work", "late work", "grading", "materials", "exam", "quiz"]):
+            return self._policy_review_prompt(lowered, mode, profile)
+        if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
+            return "Review deadlines and required submission details."
         cleaned = cleaned[0].upper() + cleaned[1:]
         if cleaned[-1] not in ".!?":
             cleaned += "."
@@ -486,6 +501,61 @@ class DocumentWorkflowEnrichmentService:
         if key in {"meeting_notice", "instructional_memo"}:
             return "Review the key next steps and follow-up details."
         return None
+
+    def _policy_review_prompt(self, lowered: str, mode: str, profile: str) -> str:
+        if any(term in lowered for term in ["attendance", "missed work", "late work"]):
+            return "Review attendance and missed-work expectations."
+        if any(term in lowered for term in ["grading", "exam", "quiz"]):
+            return "Review grading and exam-related requirements."
+        if "materials" in lowered:
+            return "Review material and resource requirements."
+        if "policy" in lowered:
+            return "Review key policy requirements."
+        if profile in {"presentation_guide", "speaking_notes"}:
+            return "Review presentation preparation guidance."
+        return "Review the key policy and requirement details."
+
+    def _compress_neighboring_points(self, points: list[str]) -> list[str]:
+        result: list[str] = []
+        seen_tokens: list[set[str]] = []
+        for point in points:
+            tokens = {token for token in re.findall(r"[a-z0-9]+", point.lower()) if len(token) > 2}
+            if any(len(tokens & existing) >= max(2, min(len(tokens), len(existing)) // 2) for existing in seen_tokens if tokens and existing):
+                continue
+            seen_tokens.append(tokens)
+            result.append(point)
+        return result
+
+    def _join_phrases(self, phrases: list[str]) -> str:
+        cleaned = [self._strip_trailing_conjunction_noise(phrase) for phrase in phrases]
+        cleaned = [phrase for phrase in cleaned if phrase]
+        if not cleaned:
+            return ""
+        if len(cleaned) == 1:
+            return cleaned[0]
+        if len(cleaned) == 2:
+            return f"{cleaned[0]} and {cleaned[1]}"
+        return f"{', '.join(cleaned[:-1])}, and {cleaned[-1]}"
+
+    def _strip_trailing_conjunction_noise(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        cleaned = re.sub(r"\s+", " ", value).strip(" ,;")
+        cleaned = re.sub(r"(?:,?\s+(?:and|or))+$", "", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.strip(" ,;")
+        return cleaned or None
+
+    def _safe_sentence(self, value: str | None) -> str | None:
+        cleaned = self._strip_trailing_conjunction_noise(value)
+        if not cleaned:
+            return None
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        cleaned = re.sub(r"\s+,", ",", cleaned)
+        cleaned = re.sub(r",\s*,", ",", cleaned)
+        cleaned = re.sub(r",\s+and\.$", ".", cleaned, flags=re.IGNORECASE)
+        if cleaned[-1] not in ".!?":
+            cleaned += "."
+        return cleaned
 
     def _metadata_section(self, result: WorkflowEnrichment, key: str) -> dict[str, Any]:
         value = result.workflow_metadata.get(key)
@@ -660,6 +730,46 @@ class DocumentWorkflowEnrichmentService:
                     "billing_period": billing_period,
                     "payment_urgency": urgency,
                     "comparison_ready": bool(amount_due and billing_period),
+                }
+            },
+        )
+
+    def _invoice(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        due_date = self._date_near_label(text, ["due date", "payment due", "pay by"])
+        invoice_date = self._date_near_label(text, ["invoice date", "date"])
+        total_due = document.extracted_amount or self._amount_near_label(text, ["amount due", "total due", "balance due", "subtotal", "total"])
+        vendor = self._line_after_label(text, ["vendor", "from", "provider"]) or self._first_meaningful_line(text)
+        invoice_number = self._line_after_label(text, ["invoice number", "invoice #", "invoice"])
+        summary = self._sentence(
+            [
+                vendor,
+                "invoice",
+                invoice_number,
+                self._money(total_due),
+                f"due {due_date}" if due_date else None,
+            ]
+        )
+        action_items = []
+        if due_date:
+            action_items.append("Review the invoice due date and payment timing.")
+        if total_due is not None:
+            action_items.append("Review billed amounts and line-item accuracy before paying.")
+        if not action_items:
+            action_items.append("Review the invoice details before filing or approving payment.")
+        return WorkflowEnrichment(
+            workflow_summary=summary,
+            action_items=action_items,
+            warnings=[] if total_due is not None else ["No clear total due was detected."],
+            key_dates=self._dedupe(([invoice_date] if invoice_date else []) + ([due_date] if due_date else []) + self._key_dates(document, text)),
+            urgency_level="medium" if due_date else "low",
+            follow_up_required=True,
+            workflow_metadata={
+                "invoice": {
+                    "vendor": vendor,
+                    "invoice_number": invoice_number,
+                    "invoice_date": invoice_date,
+                    "due_date": due_date,
+                    "amount_due": str(total_due) if total_due is not None else None,
                 }
             },
         )
@@ -1174,8 +1284,21 @@ class DocumentWorkflowEnrichmentService:
 
     def _looks_like_meeting_notice(self, text: str) -> bool:
         lowered = text.lower()
-        signals = ["meeting", "agenda", "location", "room", "join us", "attend", "minutes"]
-        return sum(signal in lowered for signal in signals) >= 2
+        patterns = [
+            r"\bmeeting\b",
+            r"\bagenda\b",
+            r"\bmeeting date\b",
+            r"\blocation\b",
+            r"\broom\b",
+            r"\bjoin us\b",
+            r"\bzoom\b",
+            r"\bteams\b",
+        ]
+        hits = sum(bool(re.search(pattern, lowered)) for pattern in patterns)
+        return hits >= 2 or (
+            bool(re.search(r"\bmeeting\b", lowered))
+            and bool(re.search(r"\b(location|room|agenda|date|zoom|teams)\b", lowered))
+        )
 
     def _looks_like_profile_record(self, text: str) -> bool:
         lowered = text.lower()

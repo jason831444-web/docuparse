@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "id": "syllabus_pdf",
+      "filename": "syllabus_system_fundamentals.pdf",
+      "format": "pdf",
+      "content": {
+        "title": "CSE 320: System Fundamentals II (L01, Stark)",
+        "lines": [
+          "CSE 320: System Fundamentals II (L01, Stark)",
+          "Syllabus",
+          "Semester: Fall 2026",
+          "Instructor: Prof. Eleanor Stark",
+          "Office Hours: Tue 2:00 PM - 4:00 PM",
+          "Course Description: This course covers systems programming, processes, memory, and concurrency.",
+          "Required Materials: Course reader, POSIX programming reference, lab notebook.",
+          "Grading: Labs 30%, Midterm 25%, Final 30%, Participation 15%.",
+          "Policies: Attendance is expected, late work requires prior approval, academic integrity rules apply.",
+          "Exam Dates: Midterm October 14, 2026. Final December 16, 2026.",
+          "Communication: Use the course forum for technical questions and email for personal matters."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["syllabus", "course_guide"],
+        "expected_categories": ["course_guide", "syllabus"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "title_forbidden_patterns": ["^Page\\b", "^Course Description:"],
+        "summary_keywords": ["course", "semester", "instructor", "materials", "exam"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "presentation_docx",
+      "filename": "wolfie_studies_presentation_guide.docx",
+      "format": "docx",
+      "content": {
+        "title": "Wolfie Studies Presentation Guide",
+        "lines": [
+          "Purpose: Help student presenters explain research findings clearly to a mixed audience.",
+          "Audience: Faculty reviewers, invited students, and community guests.",
+          "Slide Guidance: Start with the problem, show the method, then end with takeaways and next steps.",
+          "Speaking Notes: Keep explanations plain-language, pause after each key chart, and define acronyms aloud.",
+          "Preparation: Rehearse the full talk twice, test embedded media, and prepare answers for likely questions.",
+          "Timing: Keep the main talk to eight minutes with two minutes for questions."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["presentation_guide", "speaking_notes"],
+        "expected_categories": ["presentation_guide", "speaking_notes"],
+        "expected_broad_types": ["memo", "document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["presentation", "audience", "slide", "speaking", "rehears"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "profile_txt",
+      "filename": "student_profile_note.txt",
+      "format": "txt",
+      "content": {
+        "lines": [
+          "Name: Maya Patel",
+          "Student ID: 20260143",
+          "Major: Computer Science",
+          "Age: 21",
+          "Department: CEAS",
+          "Affiliation: Undergraduate Research Program"
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["profile_record"],
+        "expected_categories": ["profile_record"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["name", "id", "major", "age"],
+        "require_action_items": false
+      }
+    },
+    {
+      "id": "instructional_memo_md",
+      "filename": "workshop_facilitation_memo.md",
+      "format": "md",
+      "content": {
+        "title": "Workshop Facilitation Memo",
+        "lines": [
+          "Workshop Facilitation Memo",
+          "",
+          "Use this memo to prepare facilitators for the Friday onboarding workshop.",
+          "",
+          "- Arrival: Arrive 30 minutes early and test the projector.",
+          "- Materials: Bring printed sign-in sheets, markers, and discussion cards.",
+          "- Delivery: Keep the opening activity under ten minutes and leave time for paired discussion.",
+          "- Follow-up: Send the recap form and attendance notes before 5:00 PM."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["instructional_memo", "presentation_guide"],
+        "expected_categories": ["instructional_memo", "presentation_guide"],
+        "expected_broad_types": ["memo", "document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["memo", "facilitator", "materials", "follow-up"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "repair_receipt_png",
+      "filename": "east_repair_receipt.png",
+      "format": "png",
+      "content": {
+        "title": "East Repair Inc.",
+        "lines": [
+          "East Repair Inc.",
+          "Date 04/18/2026",
+          "Repair Service Receipt",
+          "Front and rear brake cables 100.00",
+          "New set of pedal arms 30.00",
+          "Labor 3hrs 15.00",
+          "Subtotal 145.00",
+          "Tax 9.06",
+          "Total 154.06"
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["repair_service_receipt", "receipt"],
+        "expected_categories": ["repair_service", "repair_service_receipt", "retail"],
+        "expected_broad_types": ["receipt"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["receipt", "repair", "labor", "total"],
+        "require_action_items": false
+      }
+    },
+    {
+      "id": "resume_json",
+      "filename": "alex_morgan_resume.json",
+      "format": "json",
+      "content": {
+        "json_object": {
+          "name": "Alex Morgan",
+          "title": "Software Engineer",
+          "education": [
+            "B.S. Computer Science, Stony Brook University, May 2027, GPA 3.8"
+          ],
+          "experience": [
+            "Backend engineering intern at Harbor Labs building API services",
+            "Research assistant on document understanding workflows"
+          ],
+          "projects": [
+            "Distributed notes application",
+            "OCR-assisted document parser"
+          ],
+          "technical_skills": [
+            "Python",
+            "FastAPI",
+            "PostgreSQL",
+            "React",
+            "Docker"
+          ],
+          "contact_links": [
+            "https://github.com/alexmorgan",
+            "https://linkedin.com/in/alexmorgan"
+          ]
+        }
+      },
+      "expectations": {
+        "expected_profiles": ["resume_profile"],
+        "expected_categories": ["resume_profile"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["education", "experience", "projects", "skills"],
+        "require_action_items": false
+      }
+    },
+    {
+      "id": "utility_bill_html",
+      "filename": "harbor_power_statement.html",
+      "format": "html",
+      "content": {
+        "title": "Harbor Power Monthly Statement",
+        "lines": [
+          "Harbor Power Monthly Statement",
+          "Provider: Harbor Power",
+          "Billing Period: March 1, 2026 - March 31, 2026",
+          "Due Date: April 21, 2026",
+          "Amount Due: $118.42",
+          "Usage Summary: Electricity service for Apartment 4B",
+          "AutoPay is disabled."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["utility_bill"],
+        "expected_categories": ["utilities", "utility_bill"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["provider", "billing", "due", "amount"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "format": "xml",
+      "content": {
+        "title": "Faculty Forum Meeting Notice",
+        "lines": [
+          "Faculty Forum Meeting Notice",
+          "Purpose: Review the new advising workflow and approve final rollout steps.",
+          "Meeting Date: April 29, 2026 at 2:00 PM",
+          "Location: Administration Building Room 204",
+          "Action: Bring department feedback and unresolved questions."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["meeting_notice"],
+        "expected_categories": ["meeting_notice"],
+        "expected_broad_types": ["notice"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["meeting", "purpose", "date", "location"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "invoice_csv",
+      "filename": "april_consulting_invoice.csv",
+      "format": "csv",
+      "content": {
+        "rows": [
+          ["Invoice Number", "INV-2048"],
+          ["Vendor", "North Harbor Consulting"],
+          ["Invoice Date", "2026-04-05"],
+          ["Due Date", "2026-04-30"],
+          ["Line Item", "Workshop Facilitation Support"],
+          ["Hours", "12"],
+          ["Rate", "125.00"],
+          ["Amount Due", "1500.00"]
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["invoice"],
+        "expected_categories": ["invoice"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["invoice", "vendor", "due", "amount"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "invoice_xlsx",
+      "filename": "studio_services_invoice.xlsx",
+      "format": "xlsx",
+      "content": {
+        "sheets": [
+          {
+            "name": "Invoice",
+            "rows": [
+              ["Invoice", "ST-9932"],
+              ["Vendor", "Studio North Services"],
+              ["Invoice Date", "2026-04-10"],
+              ["Due Date", "2026-05-01"],
+              ["Description", "Research presentation coaching"],
+              ["Subtotal", "840.00"],
+              ["Tax", "67.20"],
+              ["Total Due", "907.20"]
+            ]
+          }
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["invoice"],
+        "expected_categories": ["invoice"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["invoice", "vendor", "due", "total"],
+        "require_action_items": true
+      }
+    }
+  ]
+}
