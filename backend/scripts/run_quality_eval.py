@@ -63,6 +63,8 @@ def main() -> None:
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--upload-timeout", type=int, default=900)
     parser.add_argument("--cleanup", action="store_true")
+    parser.add_argument("--limit", type=int, default=None, help="Evaluate only the first N documents from the spec.")
+    parser.add_argument("--ids", default=None, help="Comma-separated spec document ids to evaluate.")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -81,7 +83,16 @@ def main() -> None:
         )
 
     results = []
-    for item in spec["documents"]:
+    documents = spec["documents"]
+    if args.ids:
+        requested_ids = {item.strip() for item in args.ids.split(",") if item.strip()}
+        documents = [item for item in documents if item["id"] in requested_ids]
+        missing_ids = requested_ids - {item["id"] for item in documents}
+        if missing_ids:
+            raise SystemExit(f"Unknown eval document id(s): {', '.join(sorted(missing_ids))}")
+    if args.limit:
+        documents = documents[: args.limit]
+    for item in documents:
         path = args.corpus_dir / item["filename"]
         results.append(runner.evaluate_document(item, path))
 

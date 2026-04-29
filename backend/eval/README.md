@@ -30,6 +30,28 @@ cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
   --compare-to eval/reports/latest-gemma.json
 ```
 
+For CPU GGUF development, use a small live slice first:
+
+```bash
+./.venv/bin/python scripts/run_quality_eval.py \
+  --mode gemma \
+  --backend-url http://localhost:8001 \
+  --label gguf-smoke \
+  --limit 2 \
+  --cleanup
+```
+
+Or target a specific case while refining:
+
+```bash
+./.venv/bin/python scripts/run_quality_eval.py \
+  --mode gemma \
+  --backend-url http://localhost:8001 \
+  --label gguf-policy-memo \
+  --ids long_policy_memo_md \
+  --cleanup
+```
+
 The harness stores:
 
 - generated docs in `backend/eval/corpus/`

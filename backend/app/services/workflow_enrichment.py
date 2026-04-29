@@ -437,7 +437,7 @@ class DocumentWorkflowEnrichmentService:
         cleaned = re.sub(r"^(this document|this file|this course|this receipt)\s+(is|contains|includes)\s+", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"^(important details?|key details?)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = cleaned.strip()
-        return cleaned[:220] if cleaned else None
+        return self._truncate_text(cleaned, 220) if cleaned else None
 
     def _is_useful_importance_point(self, point: str) -> bool:
         lowered = point.lower()
@@ -446,6 +446,10 @@ class DocumentWorkflowEnrichmentService:
         if self._is_placeholder_title(point):
             return False
         if re.fullmatch(r"(general notice|generic document|document|memo|notice)", lowered):
+            return False
+        if lowered.startswith("important date detected"):
+            return False
+        if lowered.startswith("review the document for deadlines"):
             return False
         if re.match(r"^(it|this|these)\b", lowered) and len(point.split()) > 12:
             return False
@@ -619,6 +623,7 @@ class DocumentWorkflowEnrichmentService:
         cleaned = re.sub(r"\s+,", ",", cleaned)
         cleaned = re.sub(r",\s*,", ",", cleaned)
         cleaned = re.sub(r",\s+and\.$", ".", cleaned, flags=re.IGNORECASE)
+        cleaned = self._truncate_text(cleaned, 320)
         if cleaned[-1] not in ".!?":
             cleaned += "."
         return cleaned
@@ -695,7 +700,7 @@ class DocumentWorkflowEnrichmentService:
     def _join_summary_sentences(self, *parts: str | None) -> str | None:
         sentences = []
         for part in parts:
-            cleaned = self._clean_text_fragment(part)
+            cleaned = self._clean_sentence_part(part)
             if not cleaned:
                 continue
             if cleaned[-1] not in ".!?":
@@ -849,13 +854,14 @@ class DocumentWorkflowEnrichmentService:
 
     def _education_notice(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
         deadline = self._date_near_label(text, ["deadline", "due", "register by", "submit by", "rsvp by"])
+        deadline = deadline or self._deadline_phrase_near_label(text, ["deadline", "deadlines", "due", "register by", "submit by", "rsvp by"])
         key_dates = self._key_dates(document, text)
         action_items = self._action_lines(text)
         if deadline:
             action_items.insert(0, f"Handle this notice by {deadline}.")
         elif not action_items:
             action_items.append("Review the notice for required actions.")
-        warning = "Important date detected; confirm it before relying on the reminder." if deadline or key_dates else "No clear deadline was detected."
+        warning = "Important date detected; confirm it before relying on the reminder." if deadline or key_dates else None
         urgency = "high" if self._has_urgent_language(text) else ("medium" if deadline else "low")
         summary = self._direct_text_summary(text, document.title, profile="education_notice")
         return WorkflowEnrichment(
@@ -1158,6 +1164,31 @@ class DocumentWorkflowEnrichmentService:
                     return self._normalize_date_string(dates[0]) or dates[0]
         return None
 
+    def _deadline_phrase_near_label(self, text: str, labels: list[str]) -> str | None:
+        for line in text.splitlines():
+            lowered = line.lower().replace("_", " ")
+            if not any(label in lowered for label in labels):
+                continue
+            weekday_match = re.search(
+                r"\b(?:by|before|until|on)\s+((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
+                r"(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))?)\b",
+                line,
+            )
+            if weekday_match:
+                phrase = weekday_match.group(1)
+                activation_match = re.search(
+                    r"\bfor\s+((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+activation)\b",
+                    line,
+                    flags=re.IGNORECASE,
+                )
+                if activation_match:
+                    phrase = f"{phrase} for {activation_match.group(1)}"
+                return self._clean_text_fragment(phrase)
+            time_match = re.search(r"\b(?:by|before|until)\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm))\b", line)
+            if time_match:
+                return self._clean_text_fragment(time_match.group(1))
+        return None
+
     def _amount_near_label(self, text: str, labels: list[str]) -> Decimal | None:
         for line in text.splitlines():
             lowered = line.lower().replace("_", " ")
@@ -1400,7 +1431,26 @@ class DocumentWorkflowEnrichmentService:
         cleaned = cleaned.strip(" \t\r\n-–—|")
         if not cleaned or re.fullmatch(r"[.,:;/%\\-]+", cleaned):
             return None
-        return cleaned[:160]
+        return self._truncate_text(cleaned, 160)
+
+    def _clean_sentence_part(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = re.sub(r"\s+", " ", str(value)).strip()
+        cleaned = re.sub(r"\s*[-–—]+\s*[.,:;]*\s*$", "", cleaned)
+        cleaned = re.sub(r"(?:\s+[.,:;|%]+)+$", "", cleaned)
+        cleaned = cleaned.strip(" \t\r\n-–—|")
+        if not cleaned or re.fullmatch(r"[.,:;/%\\-]+", cleaned):
+            return None
+        return self._truncate_text(cleaned, 320)
+
+    def _truncate_text(self, value: str, limit: int) -> str:
+        if len(value) <= limit:
+            return value
+        truncated = value[:limit].rstrip()
+        if " " in truncated:
+            truncated = truncated.rsplit(" ", 1)[0]
+        return truncated.rstrip(" ,;:-")
 
     def _direct_text_summary(self, text: str, title: str | None, profile: str = "generic") -> str | None:
         lines = self._unique_content_lines(text)
