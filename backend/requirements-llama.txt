@@ -1,0 +1,3 @@
+# Optional CPU-oriented GGUF runtime for document interpretation.
+# Install in production when AI_INTERPRETATION_PROVIDER=llama_cpp.
+llama-cpp-python==0.3.21

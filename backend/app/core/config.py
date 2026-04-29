@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +29,12 @@ class Settings(BaseSettings):
     ai_interpretation_max_chars: int = 12000
     ai_interpretation_skip_trivial: bool = True
     ai_interpretation_min_chars: int = 80
+    llama_cpp_model_path: Path | None = None
+    llama_cpp_context_window: int = 4096
+    llama_cpp_threads: int = 0
+    llama_cpp_gpu_layers: int = 0
+    llama_cpp_max_tokens: int = 700
+    llama_cpp_temperature: float = 0.1
     gemma_model_name: str = "google/gemma-4-E4B-it"
     gemma_model_dir: Path | None = None
     gemma_device: str = "auto"
@@ -48,6 +55,20 @@ class Settings(BaseSettings):
     pdf_ocr_max_pages: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @field_validator(
+        "llama_cpp_model_path",
+        "gemma_model_dir",
+        "paddleocr_vl_model_dir",
+        "paddleocr_vl_layout_model_dir",
+        "qwen2_5_vl_model_dir",
+        mode="before",
+    )
+    @classmethod
+    def empty_path_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache

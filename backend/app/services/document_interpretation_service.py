@@ -54,11 +54,15 @@ class DocumentInterpretationService:
         provider = self.settings.ai_interpretation_provider.lower()
         if provider == "gemma":
             return GemmaInterpretationProvider()
+        if provider in {"llama_cpp", "gemma_gguf", "gguf"}:
+            return LlamaCppGemmaInterpretationProvider()
         if provider == "openai":
             return OpenAITextInterpretationProvider()
         if provider in {"heuristic", "none"}:
             return NullInterpretationProvider()
         if provider == "auto":
+            if self.settings.llama_cpp_model_path:
+                return LlamaCppGemmaInterpretationProvider()
             if self.settings.gemma_model_dir or self.settings.huggingface_token:
                 return GemmaInterpretationProvider()
             if self.settings.openai_api_key:
@@ -425,6 +429,151 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
         except (TypeError, ValueError):
             return fallback
         return max(0.0, min(0.99, confidence))
+
+
+class LlamaCppGemmaInterpretationProvider(OpenAITextInterpretationProvider):
+    provider_name = "ai_interpretation_gemma_gguf"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._llm: Any | None = None
+        self._loaded_model_path: str | None = None
+
+    def interpret(self, document: Document, text: str, heuristic: CategoryInterpretation) -> CategoryInterpretation:
+        raw = self._call_llama_cpp(self._payload(document, text, heuristic))
+        result = self._normalize(raw, heuristic)
+        result.provider = self.provider_name
+        result.provider_chain = ["heuristic_interpretation", self.provider_name, "ai_summary_refinement"]
+        result.refinement_status = self.provider_name
+        result.diagnostics.append(f"{self.provider_name} completed with llama.cpp GGUF backend.")
+        return result
+
+    def _call_llama_cpp(self, payload: dict[str, Any]) -> dict[str, Any]:
+        llm = self._load_model()
+        output = llm(
+            self._prompt(payload),
+            max_tokens=self.settings.llama_cpp_max_tokens,
+            temperature=self.settings.llama_cpp_temperature,
+            stop=["</s>", "<end_of_turn>"],
+            echo=False,
+        )
+        return self._extract_json(self._output_text(output))
+
+    def _load_model(self) -> Any:
+        model_path = self.settings.llama_cpp_model_path
+        if model_path is None:
+            raise RuntimeError("LLAMA_CPP_MODEL_PATH is required when AI_INTERPRETATION_PROVIDER=llama_cpp.")
+        if not model_path.exists():
+            raise RuntimeError(f"Configured GGUF model file does not exist: {model_path}")
+        if model_path.is_dir():
+            raise RuntimeError(f"LLAMA_CPP_MODEL_PATH must point to a .gguf file, not a directory: {model_path}")
+
+        model_ref = str(model_path)
+        if self._llm is not None and self._loaded_model_path == model_ref:
+            return self._llm
+
+        try:
+            from llama_cpp import Llama
+        except ImportError as exc:
+            raise RuntimeError("llama-cpp-python is not installed. Install backend/requirements-llama.txt.") from exc
+
+        logger.warning("Loading GGUF interpretation model with llama.cpp: %s", model_ref)
+        self._llm = Llama(
+            model_path=model_ref,
+            n_ctx=self.settings.llama_cpp_context_window,
+            n_threads=self.settings.llama_cpp_threads or None,
+            n_gpu_layers=self.settings.llama_cpp_gpu_layers,
+            verbose=False,
+        )
+        self._loaded_model_path = model_ref
+        return self._llm
+
+    def _prompt(self, payload: dict[str, Any]) -> str:
+        instruction = (
+            "You are an expert document interpretation assistant. "
+            "Use extracted text and metadata only. Do not perform OCR. "
+            "Return only valid JSON with keys: category, profile, subtype, title_hint, summary_hint, "
+            "key_fields, warnings, workflow_hints, confidence, reasons. "
+            "Prefer concise, category-aware summaries and field emphasis. "
+            "Use workflow_hints.important_points for the most important grounded facts or takeaways. "
+            "Good profile options: receipt, repair_service_receipt, utility_bill, invoice, syllabus, course_guide, "
+            "meeting_notice, presentation_guide, speaking_notes, resume_profile, profile_record, instructional_memo, generic_document."
+        )
+        return (
+            "<start_of_turn>user\n"
+            f"{instruction}\n\nDocument payload:\n{json.dumps(payload, ensure_ascii=True)}\n\nJSON only:"
+            "\n<end_of_turn>\n<start_of_turn>model\n"
+        )
+
+    def _output_text(self, output: Any) -> str:
+        if isinstance(output, dict):
+            choices = output.get("choices")
+            if isinstance(choices, list) and choices:
+                text = choices[0].get("text")
+                if text:
+                    return str(text)
+        return str(output or "")
+
+    def _extract_json(self, output_text: str) -> dict[str, Any]:
+        candidates = [output_text.strip()]
+        balanced = self._balanced_json_object(output_text)
+        if balanced:
+            candidates.append(balanced)
+        match = re.search(r"\{.*\}", output_text, flags=re.DOTALL)
+        if match:
+            candidates.append(match.group(0))
+
+        errors: list[str] = []
+        for candidate in dict.fromkeys(value for value in candidates if value):
+            cleaned = self._strip_json_fence(candidate)
+            for variant in (cleaned, self._repair_json_object(cleaned)):
+                try:
+                    return json.loads(variant)
+                except json.JSONDecodeError as exc:
+                    errors.append(str(exc))
+        raise RuntimeError(f"llama.cpp output did not contain parseable JSON ({'; '.join(errors[-2:])}): {output_text[:400]}")
+
+    def _strip_json_fence(self, value: str) -> str:
+        stripped = value.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
+            stripped = re.sub(r"\s*```$", "", stripped)
+        return stripped.strip()
+
+    def _balanced_json_object(self, value: str) -> str | None:
+        start = value.find("{")
+        if start < 0:
+            return None
+        depth = 0
+        in_string = False
+        escaped = False
+        for index, char in enumerate(value[start:], start=start):
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return value[start : index + 1]
+        return None
+
+    def _repair_json_object(self, value: str) -> str:
+        repaired = re.sub(r",(\s*[}\]])", r"\1", value)
+        repaired = re.sub(r"([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:", r'\1"\2":', repaired)
+        repaired = re.sub(r"\bTrue\b", "true", repaired)
+        repaired = re.sub(r"\bFalse\b", "false", repaired)
+        repaired = re.sub(r"\bNone\b", "null", repaired)
+        return repaired
 
 
 class GemmaInterpretationProvider(OpenAITextInterpretationProvider):

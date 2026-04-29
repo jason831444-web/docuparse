@@ -5,7 +5,7 @@ This deployment keeps the current DocuParse architecture intact: PostgreSQL for 
 ## Services
 
 - `db`: PostgreSQL 16 with a persistent `postgres_data` Docker volume.
-- `backend`: FastAPI on port `8000` inside the Docker network. It runs Alembic migrations on startup, stores uploads in `uploaded_files`, and loads Gemma from a read-only host mount.
+- `backend`: FastAPI on port `8000` inside the Docker network. It runs Alembic migrations on startup, stores uploads in `uploaded_files`, and loads the configured interpretation model from a read-only host mount.
 - `frontend`: Next.js production server on port `3000` inside the Docker network.
 - `proxy`: nginx public entrypoint. It routes `/` to the frontend and `/api`, `/uploads`, and `/health` to the backend.
 
@@ -22,37 +22,44 @@ Set at minimum:
 - `POSTGRES_PASSWORD`: a long random password.
 - `PUBLIC_BASE_URL`: the public origin, for example `https://docuparse.example.com`.
 - `CORS_ORIGINS`: JSON list containing the public origin, for example `["https://docuparse.example.com"]`.
-- `GEMMA_MODEL_DIR_ON_HOST`: absolute server path for the Gemma model files.
-- `GEMMA_DEVICE`: `auto`, `cpu`, `cuda`, or another device string supported by the installed torch runtime.
+- `AI_INTERPRETATION_PROVIDER`: `llama_cpp` for the GGUF production path, or `gemma` with `docker-compose.hf-legacy.yml` to compare the legacy HF/Transformers path.
+- `LLAMA_CPP_MODEL_DIR_ON_HOST`: absolute server directory containing the `.gguf` model file.
+- `LLAMA_CPP_MODEL_FILE`: GGUF filename inside `LLAMA_CPP_MODEL_DIR_ON_HOST`.
 
-The compose file sets `GEMMA_MODEL_DIR=/models/gemma` inside the backend container. Do not bake model weights into the image.
+The compose file sets `LLAMA_CPP_MODEL_PATH=/models/gguf/${LLAMA_CPP_MODEL_FILE}` inside the backend container. Do not bake model weights into the image.
 If `POSTGRES_PASSWORD` contains URL-reserved characters such as `@`, `/`, `:`, or `#`, URL-encode it before using this compose file because it is interpolated into `DATABASE_URL`.
 
-## Gemma Model Location
+## GGUF Model Location
 
-Place the current Gemma Hugging Face snapshot on the server filesystem, for example:
+Place a quantized instruction-tuned GGUF model on the server filesystem, for example:
 
 ```text
-/srv/docuparse/models/gemma-4-E4B-it/
-  config.json
-  tokenizer.json
-  model-*.safetensors
-  ...
+/srv/docuparse/models/gguf/
+  gemma-3-4b-it-q4_0.gguf
 ```
 
 Then set:
 
 ```dotenv
-GEMMA_MODEL_DIR_ON_HOST=/srv/docuparse/models/gemma-4-E4B-it
-GEMMA_MODEL_NAME=google/gemma-4-E4B-it
-AI_INTERPRETATION_PROVIDER=gemma
+AI_INTERPRETATION_PROVIDER=llama_cpp
+LLAMA_CPP_MODEL_DIR_ON_HOST=/srv/docuparse/models/gguf
+LLAMA_CPP_MODEL_FILE=gemma-3-4b-it-q4_0.gguf
+LLAMA_CPP_GPU_LAYERS=0
 ```
 
 The backend mount is read-only:
 
 ```text
-${GEMMA_MODEL_DIR_ON_HOST}:/models/gemma:ro
+${LLAMA_CPP_MODEL_DIR_ON_HOST}:/models/gguf:ro
 ```
+
+The legacy HF/Transformers path remains available for comparison:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.hf-legacy.yml --env-file .env.prod up -d --build backend
+```
+
+For that comparison, set `GEMMA_MODEL_DIR_ON_HOST` to the HF snapshot directory. The main production compose file does not require the HF model mount.
 
 ## Start The Stack
 
@@ -144,10 +151,19 @@ python scripts/run_quality_eval.py \
 ```
 
 The report fails if Gemma mode is requested but the final provider chain does not prove Gemma participation.
+For the GGUF path, provider chains should include `ai_interpretation_gemma_gguf`.
+
+Confirm the deployed backend is using GGUF after an upload:
+
+```bash
+curl -fsS "http://127.0.0.1/api/documents/$DOC_ID" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("provider_chain")); assert "ai_interpretation_gemma_gguf" in (d.get("provider_chain") or "")'
+```
 
 ## Notes And Risks
 
 - TLS is not terminated by `infra/nginx.prod.conf`. Put this stack behind a server TLS proxy/load balancer or extend nginx with certificates before exposing it directly.
-- `INSTALL_AI_DEPS=true` installs heavy AI packages into the backend image. GPU servers may need a CUDA-specific base image or torch wheel strategy.
+- `INSTALL_LLAMA_CPP_DEPS=true` installs `llama-cpp-python`; first builds may compile native code if a matching wheel is unavailable.
+- `INSTALL_AI_DEPS=true` installs the heavier HF/Transformers/Paddle/Qwen packages. Keep it `false` for the GGUF production path unless comparing old behavior.
 - The nginx upload limit is `64m`; keep it aligned with `MAX_UPLOAD_MB`.
 - `PROCESSING_MODE` remains `inline`, matching the current app architecture. Large Gemma inference can keep upload requests open for a long time.

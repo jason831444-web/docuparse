@@ -33,7 +33,8 @@ cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
 The harness stores:
 
 - generated docs in `backend/eval/corpus/`
-- run reports in `backend/eval/reports/`
+- current run reports in `backend/eval/reports/latest*.json` and `backend/eval/reports/latest*.md`
+- historical timestamped reports in `backend/eval/reports/archive/`
 - representative expectations in `backend/eval/specs/eval_documents.json`
 
 The expectations are intentionally coarse. They do not hardcode exact text;
@@ -70,7 +71,8 @@ Before running Gemma mode, make sure:
 - Postgres is running
 - the backend API is running
 - Gemma is configured, for example with `GEMMA_MODEL_DIR` or
-  `HUGGINGFACE_TOKEN`
+  `HUGGINGFACE_TOKEN`, or with `AI_INTERPRETATION_PROVIDER=llama_cpp` and
+  `LLAMA_CPP_MODEL_PATH` pointing at a Gemma 3 GGUF file
 - the backend is actually using Gemma interpretation rather than the
   unavailable fallback path
 
@@ -82,6 +84,16 @@ source .venv/bin/activate
 export GEMMA_MODEL_DIR=/Users/yoonjaeseong/Desktop/models/gemma-2-2b-it
 export AI_INTERPRETATION_PROVIDER=gemma
 export AI_INTERPRETATION_FORCE_SMALL_MODEL=true
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+GGUF example:
+
+```bash
+cd /Users/yoonjaeseong/Desktop/projects/DocuParse/backend
+source .venv/bin/activate
+export AI_INTERPRETATION_PROVIDER=llama_cpp
+export LLAMA_CPP_MODEL_PATH=../models/gguf/gemma-3-4b-it-q4_0.gguf
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 

@@ -6,14 +6,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_LLAMA_CPP_DEPS=false
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr libgl1 libglib2.0-0 \
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        libgl1 \
+        libglib2.0-0 \
+        $([ "$INSTALL_LLAMA_CPP_DEPS" = "true" ] && echo "build-essential cmake") \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-ai.txt ./
+COPY requirements.txt requirements-ai.txt requirements-llama.txt ./
 RUN pip install -r requirements.txt
 ARG INSTALL_AI_DEPS=false
 RUN if [ "$INSTALL_AI_DEPS" = "true" ]; then pip install -r requirements-ai.txt; fi
+RUN if [ "$INSTALL_LLAMA_CPP_DEPS" = "true" ]; then pip install -r requirements-llama.txt; fi
 
 COPY . .
 

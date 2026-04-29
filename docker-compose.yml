@@ -20,6 +20,9 @@ services:
       - backend
     build:
       context: ./backend
+      args:
+        INSTALL_LLAMA_CPP_DEPS: ${INSTALL_LLAMA_CPP_DEPS:-true}
+        INSTALL_AI_DEPS: ${INSTALL_AI_DEPS:-false}
     environment:
       DATABASE_URL: postgresql+psycopg://docuparse:docuparse@db:5432/docuparse
       UPLOAD_DIR: /app/uploads
@@ -28,6 +31,19 @@ services:
       STORAGE_BACKEND: local
       PROCESSING_MODE: inline
       QUEUE_BACKEND: local
+      AI_INTERPRETATION_ENABLED: ${AI_INTERPRETATION_ENABLED:-true}
+      AI_INTERPRETATION_PROVIDER: ${AI_INTERPRETATION_PROVIDER:-llama_cpp}
+      AI_INTERPRETATION_MODEL: ${AI_INTERPRETATION_MODEL:-gguf-local}
+      AI_INTERPRETATION_FALLBACK_MODEL: ${AI_INTERPRETATION_FALLBACK_MODEL:-google/gemma-2-2b-it}
+      AI_INTERPRETATION_ENABLE_MODEL_FALLBACK: ${AI_INTERPRETATION_ENABLE_MODEL_FALLBACK:-true}
+      AI_INTERPRETATION_FORCE_SMALL_MODEL: ${AI_INTERPRETATION_FORCE_SMALL_MODEL:-false}
+      AI_INTERPRETATION_LOCAL_PREFER_SMALL_MODEL: ${AI_INTERPRETATION_LOCAL_PREFER_SMALL_MODEL:-false}
+      LLAMA_CPP_MODEL_PATH: /models/gguf/${LLAMA_CPP_MODEL_FILE:-gemma-3-4b-it-q4_0.gguf}
+      LLAMA_CPP_CONTEXT_WINDOW: ${LLAMA_CPP_CONTEXT_WINDOW:-4096}
+      LLAMA_CPP_THREADS: ${LLAMA_CPP_THREADS:-0}
+      LLAMA_CPP_GPU_LAYERS: ${LLAMA_CPP_GPU_LAYERS:-0}
+      LLAMA_CPP_MAX_TOKENS: ${LLAMA_CPP_MAX_TOKENS:-700}
+      LLAMA_CPP_TEMPERATURE: ${LLAMA_CPP_TEMPERATURE:-0.1}
       AI_PRIMARY_PROVIDER: paddleocr_vl
       AI_SECONDARY_PROVIDER: qwen2_5_vl
       AI_ENABLE_SECOND_PASS: "true"
@@ -41,6 +57,7 @@ services:
     volumes:
       - uploaded_files:/app/uploads
       - model_cache:/app/models
+      - ./models/gguf:/models/gguf:ro
     depends_on:
       db:
         condition: service_healthy

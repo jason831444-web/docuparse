@@ -1,0 +1,11 @@
+services:
+  backend:
+    build:
+      args:
+        INSTALL_AI_DEPS: "true"
+    environment:
+      AI_INTERPRETATION_PROVIDER: gemma
+      AI_INTERPRETATION_MODEL: ${AI_INTERPRETATION_MODEL:-google/gemma-4-E4B-it}
+      GEMMA_MODEL_DIR: /models/gemma
+    volumes:
+      - ${GEMMA_MODEL_DIR_ON_HOST:?set GEMMA_MODEL_DIR_ON_HOST}:/models/gemma:ro

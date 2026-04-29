@@ -14,7 +14,7 @@ DocuParse is a production-minded MVP for organizing receipt and document images 
 - Re-run OCR/parsing for an uploaded document
 - Export all documents as CSV
 - Export one document as JSON
-- Docker Compose setup with PostgreSQL, FastAPI, and Next.js
+- Docker Compose setup with PostgreSQL, FastAPI, Next.js, and optional local GGUF interpretation
 
 ## Tech Stack
 
@@ -61,10 +61,10 @@ The OCR, AI understanding, and parsing interfaces are deliberately modular. A cl
 
 ## Run With Docker
 
-From the repository root:
+From the repository root, start the full local stack with the backend profile:
 
 ```bash
-docker compose up --build
+docker compose --profile backend up --build
 ```
 
 Then open:
@@ -74,6 +74,7 @@ Then open:
 - Health check: http://localhost:8001/health
 
 The backend container runs Alembic migrations on startup. Uploaded files are stored in a Docker volume.
+For GGUF-backed interpretation, place the model file at `models/gguf/gemma-3-4b-it-q4_0.gguf` before starting the backend.
 
 ## Local Development
 
@@ -93,6 +94,7 @@ cd backend
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-llama.txt
 cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -108,6 +110,40 @@ You can start only PostgreSQL with Docker if desired. The Compose file exposes i
 
 ```bash
 docker compose up db
+```
+
+### Local Gemma 3 GGUF
+
+The CPU-friendly interpretation path uses `llama-cpp-python` with a local GGUF file. Use the 4B instruction-tuned QAT GGUF as the balanced default:
+
+```text
+models/gguf/gemma-3-4b-it-q4_0.gguf
+```
+
+Model source:
+
+```text
+google/gemma-3-4b-it-qat-q4_0-gguf
+```
+
+The local backend env should include:
+
+```dotenv
+AI_INTERPRETATION_ENABLED=true
+AI_INTERPRETATION_PROVIDER=llama_cpp
+AI_INTERPRETATION_MODEL=gguf-local
+LLAMA_CPP_MODEL_PATH=../models/gguf/gemma-3-4b-it-q4_0.gguf
+LLAMA_CPP_CONTEXT_WINDOW=4096
+LLAMA_CPP_THREADS=0
+LLAMA_CPP_GPU_LAYERS=0
+LLAMA_CPP_MAX_TOKENS=700
+LLAMA_CPP_TEMPERATURE=0.1
+```
+
+After uploading a non-trivial document, confirm the active path through the document detail API. The provider chain should include:
+
+```text
+ai_interpretation_gemma_gguf
 ```
 
 ### Frontend
@@ -133,6 +169,13 @@ Backend:
 - `AI_PROVIDER`: `auto`, `local`, or `openai`
 - `AI_MODEL`: multimodal model name when using an external provider
 - `OPENAI_API_KEY`: optional API key for the OpenAI vision provider
+- `AI_INTERPRETATION_PROVIDER`: `llama_cpp`, `gemma`, `openai`, `heuristic`, or `auto`
+- `LLAMA_CPP_MODEL_PATH`: local `.gguf` file path for the CPU-friendly interpretation backend
+- `LLAMA_CPP_CONTEXT_WINDOW`: llama.cpp context window, default `4096`
+- `LLAMA_CPP_THREADS`: llama.cpp CPU thread count; `0` lets llama.cpp choose
+- `LLAMA_CPP_GPU_LAYERS`: number of layers to offload; use `0` for CPU-only
+- `LLAMA_CPP_MAX_TOKENS`: maximum generated interpretation tokens
+- `LLAMA_CPP_TEMPERATURE`: generation temperature
 - `AI_PRIMARY_PROVIDER`: primary open-source provider, default `paddleocr_vl`
 - `AI_SECONDARY_PROVIDER`: second-pass provider, default `qwen2_5_vl`
 - `AI_ENABLE_SECOND_PASS`: enables Qwen refinement when quality gates fail
@@ -183,7 +226,7 @@ The local fallback combines OCR text, image-quality signals, document classifica
 
 ## Optional Open-Source Model Setup
 
-The base Docker image does not install PaddleOCR-VL or Qwen2.5-VL dependencies because they are heavy and hardware-sensitive. To enable local open-source model inference:
+The CPU-friendly text interpretation path is Gemma 3 GGUF through llama.cpp. The heavier PaddleOCR-VL, Qwen2.5-VL, and HF/Transformers dependencies are still available for comparison and experimentation, but they are not the default CPU-oriented deployment path. To enable those heavier runtimes:
 
 ```bash
 cd backend

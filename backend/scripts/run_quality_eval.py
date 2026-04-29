@@ -33,6 +33,7 @@ API_PREFIX = "/api/documents"
 GEMMA_PROVIDER_MARKERS = {
     "ai_interpretation_gemma",
     "ai_interpretation_gemma_fallback_small",
+    "ai_interpretation_gemma_gguf",
 }
 GEMMA_FALLBACK_MARKERS = {
     "ai_interpretation_gemma_unavailable",
