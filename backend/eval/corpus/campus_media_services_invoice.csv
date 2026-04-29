@@ -1,0 +1,12 @@
+Invoice Number,CMS-3107
+Vendor,Campus Media Services
+Bill To,Center for Teaching Innovation
+Invoice Date,2026-04-14
+Due Date,2026-05-14
+Line Item,Lecture capture setup,Qty,2,Unit,350.00,Amount,700.00
+Line Item,Captioning review hours,Qty,8,Unit,65.00,Amount,520.00
+Line Item,Streaming support for keynote,Qty,1,Unit,425.00,Amount,425.00
+Subtotal,1645.00
+Service Fee,49.35
+Total Due,1694.35
+Payment Terms,Net 30; include invoice number on remittance

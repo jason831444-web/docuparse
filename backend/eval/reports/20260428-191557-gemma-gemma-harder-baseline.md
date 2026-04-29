@@ -1,33 +1,33 @@
-# DocuParse Quality Report (gemma-harder-refine2-rerun)
+# DocuParse Quality Report (gemma-harder-baseline)
 
 - Mode: `gemma`
-- Generated at: `2026-04-28T20:23:22.752592`
+- Generated at: `2026-04-28T19:15:57.966361`
 - Documents: `18`
-- Average score: `100.0`
+- Average score: `92.17`
 - Status counts: `{'ready': 11, 'needs_review': 7}`
-- Severity counts: `{}`
-- Backend URL: `http://127.0.0.1:8001`
+- Severity counts: `{'warn': 15, 'fail': 2}`
+- Backend URL: `http://localhost:8001`
 
 ## Top Issue Patterns
 
+- `summary_repetitive`: 7
+- `action_item_weak`: 2
+- `generic_profile`: 1
+- `profile_mismatch`: 1
+- `category_mismatch`: 1
+- `broad_type_mismatch`: 1
+- `summary_generic`: 1
+- `generic_profile_specific_category`: 1
+- `gemma_output_fallback_like`: 1
+- `action_item_too_long`: 1
 
 ## Most Problematic Documents
 
-- `syllabus_system_fundamentals.pdf` score `100` issues `none`
-- `wolfie_studies_presentation_guide.docx` score `100` issues `none`
-- `student_profile_note.txt` score `100` issues `none`
-- `workshop_facilitation_memo.md` score `100` issues `none`
-- `east_repair_receipt.png` score `100` issues `none`
-
-## Comparison
-
-- Previous mode: `gemma`
-- Current mode: `gemma`
-- Previous average score: `95.06`
-- Current average score: `100.0`
-- Delta: `4.94`
-- Improved docs: `[{'id': 'presentation_docx', 'delta': 25}, {'id': 'meeting_notice_xml', 'delta': 32}, {'id': 'nested_meeting_notice_xml', 'delta': 32}]`
-- Regressed docs: `[]`
+- `lab_access_policy_memo.md` score `22` issues `generic_profile, profile_mismatch, category_mismatch, broad_type_mismatch, summary_generic, summary_repetitive, generic_profile_specific_category, gemma_output_fallback_like`
+- `advising_rollout_notice.xml` score `79` issues `summary_repetitive, action_item_too_long, action_item_weak`
+- `workshop_facilitation_memo.md` score `93` issues `summary_repetitive`
+- `faculty_forum_notice.xml` score `93` issues `summary_repetitive`
+- `april_consulting_invoice.csv` score `93` issues `summary_repetitive`
 
 ## Per-Document Results
 
@@ -63,13 +63,14 @@
 
 ### `workshop_facilitation_memo.md`
 
-- Score: `100`
+- Score: `93`
 - Profile: `instructional_memo`
 - Category: `instructional_memo`
 - Broad type: `memo`
 - Title: `Workshop Facilitation Memo`
 - Provider chain: `md_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
 
 ### `east_repair_receipt.png`
 
@@ -103,53 +104,65 @@
 
 ### `faculty_forum_notice.xml`
 
-- Score: `100`
+- Score: `93`
 - Profile: `meeting_notice`
 - Category: `meeting_notice`
 - Broad type: `notice`
 - Title: `Faculty Forum Meeting Notice`
 - Provider chain: `xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
 
 ### `april_consulting_invoice.csv`
 
-- Score: `100`
+- Score: `93`
 - Profile: `invoice`
 - Category: `invoice`
 - Broad type: `document`
 - Title: `Invoice Number | INV-2048`
 - Provider chain: `csv_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
 
 ### `studio_services_invoice.xlsx`
 
-- Score: `100`
+- Score: `93`
 - Profile: `invoice`
 - Category: `invoice`
 - Broad type: `document`
 - Title: `Vendor  Studio North Services receipt`
 - Provider chain: `xlsx_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
 
 ### `advanced_data_stewardship_course_guide.pdf`
 
-- Score: `100`
+- Score: `93`
 - Profile: `course_guide`
 - Category: `course_guide`
 - Broad type: `document`
 - Title: `IDS 410: Advanced Data Stewardship Course Guide`
 - Provider chain: `pdf_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `action_item_weak` Action item is not very user-facing or review-oriented: `Communication.`
 
 ### `lab_access_policy_memo.md`
 
-- Score: `100`
-- Profile: `instructional_memo`
-- Category: `instructional_memo`
-- Broad type: `memo`
+- Score: `22`
+- Profile: `generic_document`
+- Category: `education`
+- Broad type: `notice`
 - Title: `Laboratory Access Policy Implementation Memo`
 - Provider chain: `md_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [fail] `generic_profile` Document stayed generic even though stronger evidence was expected.
+  - [fail] `profile_mismatch` Expected one of ['instructional_memo'], got generic_document.
+  - [warn] `category_mismatch` Expected category near ['instructional_memo'], got education.
+  - [warn] `broad_type_mismatch` Expected broad type near ['memo', 'document'], got notice.
+  - [warn] `summary_generic` Detailed summary still sounds generic.
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
+  - [warn] `generic_profile_specific_category` Category is specific but profile stayed generic.
+  - [warn] `gemma_output_fallback_like` Gemma was requested, but the final output still feels too fallback-like or under-explained.
 
 ### `ridgeview_water_statement.html`
 
@@ -183,23 +196,27 @@
 
 ### `advising_rollout_notice.xml`
 
-- Score: `100`
+- Score: `79`
 - Profile: `meeting_notice`
 - Category: `meeting_notice`
 - Broad type: `notice`
 - Title: `Advising Workflow Rollout Notice`
 - Provider chain: `xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
+  - [warn] `action_item_too_long` Action item is too long: `Required Attendees: undergraduate program directors, advising coordinators, regi...`
+  - [warn] `action_item_weak` Action item is not very user-facing or review-oriented: `Required Attendees: undergraduate program directors, advising coordinators, registrar liaison, and department schedulers.`
 
 ### `campus_media_services_invoice.csv`
 
-- Score: `100`
+- Score: `93`
 - Profile: `invoice`
 - Category: `invoice`
 - Broad type: `document`
 - Title: `VendorCampus Media Services receipt`
 - Provider chain: `csv_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [warn] `summary_repetitive` Detailed summary repeats concepts or phrasing in a mechanical way.
 
 ### `mentor_program_participant_profile.docx`
 

@@ -1,32 +1,35 @@
-# DocuParse Quality Report (gemma-harder-refine2-rerun)
+# DocuParse Quality Report (gemma-harder-refine2)
 
 - Mode: `gemma`
-- Generated at: `2026-04-28T20:23:22.752592`
+- Generated at: `2026-04-28T20:04:26.865621`
 - Documents: `18`
-- Average score: `100.0`
+- Average score: `95.06`
 - Status counts: `{'ready': 11, 'needs_review': 7}`
-- Severity counts: `{}`
+- Severity counts: `{'fail': 3, 'warn': 5}`
 - Backend URL: `http://127.0.0.1:8001`
 
 ## Top Issue Patterns
 
+- `profile_mismatch`: 3
+- `category_mismatch`: 3
+- `broad_type_mismatch`: 2
 
 ## Most Problematic Documents
 
+- `faculty_forum_notice.xml` score `68` issues `profile_mismatch, category_mismatch, broad_type_mismatch`
+- `advising_rollout_notice.xml` score `68` issues `profile_mismatch, category_mismatch, broad_type_mismatch`
+- `wolfie_studies_presentation_guide.docx` score `75` issues `profile_mismatch, category_mismatch`
 - `syllabus_system_fundamentals.pdf` score `100` issues `none`
-- `wolfie_studies_presentation_guide.docx` score `100` issues `none`
 - `student_profile_note.txt` score `100` issues `none`
-- `workshop_facilitation_memo.md` score `100` issues `none`
-- `east_repair_receipt.png` score `100` issues `none`
 
 ## Comparison
 
 - Previous mode: `gemma`
 - Current mode: `gemma`
 - Previous average score: `95.06`
-- Current average score: `100.0`
-- Delta: `4.94`
-- Improved docs: `[{'id': 'presentation_docx', 'delta': 25}, {'id': 'meeting_notice_xml', 'delta': 32}, {'id': 'nested_meeting_notice_xml', 'delta': 32}]`
+- Current average score: `95.06`
+- Delta: `0.0`
+- Improved docs: `[]`
 - Regressed docs: `[]`
 
 ## Per-Document Results
@@ -43,13 +46,15 @@
 
 ### `wolfie_studies_presentation_guide.docx`
 
-- Score: `100`
-- Profile: `presentation_guide`
-- Category: `presentation_guide`
+- Score: `75`
+- Profile: `instructional_memo`
+- Category: `instructional_memo`
 - Broad type: `memo`
 - Title: `Wolfie Studies Presentation Guide`
 - Provider chain: `docx_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [fail] `profile_mismatch` Expected one of ['presentation_guide', 'speaking_notes'], got instructional_memo.
+  - [warn] `category_mismatch` Expected category near ['presentation_guide', 'speaking_notes'], got instructional_memo.
 
 ### `student_profile_note.txt`
 
@@ -103,13 +108,16 @@
 
 ### `faculty_forum_notice.xml`
 
-- Score: `100`
-- Profile: `meeting_notice`
-- Category: `meeting_notice`
-- Broad type: `notice`
+- Score: `68`
+- Profile: `instructional_memo`
+- Category: `instructional_memo`
+- Broad type: `memo`
 - Title: `Faculty Forum Meeting Notice`
 - Provider chain: `xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [fail] `profile_mismatch` Expected one of ['meeting_notice'], got instructional_memo.
+  - [warn] `category_mismatch` Expected category near ['meeting_notice'], got instructional_memo.
+  - [warn] `broad_type_mismatch` Expected broad type near ['notice'], got memo.
 
 ### `april_consulting_invoice.csv`
 
@@ -183,13 +191,16 @@
 
 ### `advising_rollout_notice.xml`
 
-- Score: `100`
-- Profile: `meeting_notice`
-- Category: `meeting_notice`
-- Broad type: `notice`
+- Score: `68`
+- Profile: `instructional_memo`
+- Category: `instructional_memo`
+- Broad type: `memo`
 - Title: `Advising Workflow Rollout Notice`
 - Provider chain: `xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement`
-- Issues: none
+- Issues:
+  - [fail] `profile_mismatch` Expected one of ['meeting_notice'], got instructional_memo.
+  - [warn] `category_mismatch` Expected category near ['meeting_notice'], got instructional_memo.
+  - [warn] `broad_type_mismatch` Expected broad type near ['notice', 'document'], got memo.
 
 ### `campus_media_services_invoice.csv`
 

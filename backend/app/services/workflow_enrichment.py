@@ -128,9 +128,9 @@ class DocumentWorkflowEnrichmentService:
         interpretation: CategoryInterpretation | None,
         important_points: list[str],
     ) -> str | None:
-        top_points = important_points[:2]
+        lead = self._importance_lead(document, mode, profile)
+        top_points = self._summary_points(important_points, lead, interpretation, limit=2)
         if top_points:
-            lead = self._importance_lead(document, mode, profile)
             if len(top_points) == 1:
                 return self._join_summary_sentences(lead, top_points[0])
             return self._join_summary_sentences(lead, f"Key details: {top_points[0]}; {top_points[1]}")
@@ -149,10 +149,11 @@ class DocumentWorkflowEnrichmentService:
         summary_short: str | None,
         important_points: list[str],
     ) -> str | None:
-        top_points = important_points[:5]
+        lead = self._importance_lead(document, mode, profile)
+        top_points = self._summary_points(important_points, lead, interpretation, limit=5)
         highlight_sentence = self._natural_highlight_sentence(top_points, mode, profile)
         purpose_sentence = self._importance_purpose_sentence(document, mode, profile, result, important_points)
-        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint):
+        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint) and not self._summary_hint_is_template(interpretation.summary_hint):
             highlight_sentence = self._natural_highlight_sentence([interpretation.summary_hint] + top_points[:3], mode, profile) or highlight_sentence
         label = self._category_display_name(profile if profile != "standard" else mode or document.document_type.value)
         return self._join_summary_sentences(
@@ -160,6 +161,52 @@ class DocumentWorkflowEnrichmentService:
             highlight_sentence or summary_short,
             purpose_sentence,
         )
+
+    def _summary_points(
+        self,
+        points: list[str],
+        lead: str | None,
+        interpretation: CategoryInterpretation | None,
+        limit: int,
+    ) -> list[str]:
+        cleaned: list[str] = []
+        blocked = {self._summary_key(lead)}
+        if interpretation and interpretation.summary_hint and self._summary_hint_is_template(interpretation.summary_hint):
+            blocked.add(self._summary_key(interpretation.summary_hint))
+        for point in points:
+            normalized = self._normalize_importance_point(point)
+            if not normalized:
+                continue
+            key = self._summary_key(normalized)
+            if key in blocked:
+                continue
+            if key and any(key == existing or key in existing or existing in key for existing in blocked if existing):
+                continue
+            cleaned.append(normalized)
+            blocked.add(key)
+            if len(cleaned) >= limit:
+                break
+        return cleaned
+
+    def _summary_key(self, value: str | None) -> str:
+        if not value:
+            return ""
+        return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+    def _summary_hint_is_template(self, value: str | None) -> bool:
+        lowered = (value or "").lower().strip()
+        templates = [
+            "invoice document with vendor",
+            "meeting notice with time",
+            "course guide with title",
+            "presentation guide with audience",
+            "instructional memo with guidance",
+            "instructional memo with process guidance",
+            "resume-style document highlighting",
+            "profile-like text containing identity",
+            "utility bill or account statement",
+        ]
+        return any(lowered.startswith(template) for template in templates)
 
     def _important_points(
         self,
@@ -261,7 +308,7 @@ class DocumentWorkflowEnrichmentService:
             self._string_value(meeting_meta.get("meeting_date")),
             self._string_value(meeting_meta.get("location")),
         ])
-        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint):
+        if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint) and not self._summary_hint_is_template(interpretation.summary_hint):
             points.append(interpretation.summary_hint)
         return [point for point in points if point]
 
@@ -359,7 +406,15 @@ class DocumentWorkflowEnrichmentService:
         important_points: list[str],
     ) -> str:
         if result.follow_up_required or result.action_items:
-            return "Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context."
+            if profile in {"syllabus", "course_guide"}:
+                return "Use it to track expectations, deadlines, materials, and course work that need attention."
+            if profile == "instructional_memo":
+                return "Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations."
+            if profile == "meeting_notice":
+                return "Use it to prepare for the meeting, note the location or timing, and complete any follow-up."
+            if profile in {"invoice", "utility_bill"}:
+                return "Use it to verify charges, due dates, account details, and payment or filing needs."
+            return "Use it to confirm timing, required follow-up, and the details most relevant to the reader."
         if document.document_type == DocumentType.receipt:
             return "It mainly matters as a transaction record, especially for tracking, reimbursement, or understanding the purchase or service context."
         if profile in {"syllabus", "course_guide"}:
@@ -470,6 +525,12 @@ class DocumentWorkflowEnrichmentService:
         receipt_like = {"receipt", "repair_service_receipt", "utility_bill", "invoice"}
         if "receipt" in lowered and key not in receipt_like:
             return self._action_fallback(mode, profile)
+        if "required attendees" in lowered:
+            return "Confirm required attendees and preparation before the meeting."
+        if lowered.rstrip(".:") == "communication":
+            return "Review course communication expectations."
+        if "contact:" in lowered or lowered.startswith("contact "):
+            return "Confirm the right contact channel for questions or exceptions."
         if len(cleaned.split()) > 12 or self._looks_like_body_fragment(cleaned):
             if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
                 return "Review the document for deadlines or required submission steps."
@@ -1187,6 +1248,7 @@ class DocumentWorkflowEnrichmentService:
         lowered = summary.lower()
         return (
             len(summary.split()) > 30
+            or self._summary_hint_is_template(summary)
             or lowered.startswith("receipt with merchant")
             or lowered.startswith("profile-like text containing identity")
             or ";" in summary

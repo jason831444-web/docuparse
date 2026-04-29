@@ -64,15 +64,27 @@ def _write_document(path: Path, doc_format: str, content: dict) -> None:
 
 def _write_pdf(path: Path, content: dict) -> None:
     doc = fitz.open()
-    page = doc.new_page(width=612, height=792)
     title = content.get("title")
     lines = list(content.get("lines", []))
+    page = doc.new_page(width=612, height=792)
     y = 52
     if title:
         page.insert_textbox(fitz.Rect(48, y, 560, y + 42), title, fontsize=18, fontname="helv")
-        y += 40
-    body = "\n\n".join(lines)
-    page.insert_textbox(fitz.Rect(48, y, 560, 740), body, fontsize=11.5, fontname="helv", lineheight=1.35)
+        y += 44
+    for line in lines:
+        chunks = textwrap.wrap(line, width=92) or [""]
+        block_height = max(22, 15 * len(chunks) + 10)
+        if y + block_height > 740:
+            page = doc.new_page(width=612, height=792)
+            y = 52
+        page.insert_textbox(
+            fitz.Rect(48, y, 560, y + block_height),
+            "\n".join(chunks),
+            fontsize=11.5,
+            fontname="helv",
+            lineheight=1.25,
+        )
+        y += block_height
     doc.save(path)
     doc.close()
 
@@ -121,6 +133,11 @@ def _write_image(path: Path, content: dict) -> None:
             draw.text((60, y), chunk, fill="black", font=body_font)
             y += 42
         y += 8
+    if content.get("ocr_noise"):
+        for x in range(90, 1120, 170):
+            draw.line((x, 120, x + 70, 1280), fill=(225, 225, 225), width=2)
+        for y_line in range(230, 1250, 190):
+            draw.line((45, y_line, 1150, y_line + 20), fill=(230, 230, 230), width=2)
     image.save(path)
 
 

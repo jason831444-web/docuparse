@@ -1,18 +1,54 @@
 {
-  "label": "gemma-harder-refine2-rerun",
+  "label": "gemma-harder-refine1",
   "mode": "gemma",
   "backend_url": "http://127.0.0.1:8001",
-  "generated_at": "2026-04-28T20:23:22.752592",
+  "generated_at": "2026-04-28T19:46:55.546771",
   "spec_version": 1,
   "documents_total": 18,
-  "average_score": 100.0,
+  "average_score": 95.06,
   "status_counts": {
     "ready": 11,
     "needs_review": 7
   },
-  "severity_counts": {},
-  "issue_counts": {},
+  "severity_counts": {
+    "fail": 3,
+    "warn": 5
+  },
+  "issue_counts": {
+    "profile_mismatch": 3,
+    "category_mismatch": 3,
+    "broad_type_mismatch": 2
+  },
   "problem_documents": [
+    {
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "score": 68,
+      "issue_codes": [
+        "profile_mismatch",
+        "category_mismatch",
+        "broad_type_mismatch"
+      ]
+    },
+    {
+      "id": "nested_meeting_notice_xml",
+      "filename": "advising_rollout_notice.xml",
+      "score": 68,
+      "issue_codes": [
+        "profile_mismatch",
+        "category_mismatch",
+        "broad_type_mismatch"
+      ]
+    },
+    {
+      "id": "presentation_docx",
+      "filename": "wolfie_studies_presentation_guide.docx",
+      "score": 75,
+      "issue_codes": [
+        "profile_mismatch",
+        "category_mismatch"
+      ]
+    },
     {
       "id": "syllabus_pdf",
       "filename": "syllabus_system_fundamentals.pdf",
@@ -20,26 +56,8 @@
       "issue_codes": []
     },
     {
-      "id": "presentation_docx",
-      "filename": "wolfie_studies_presentation_guide.docx",
-      "score": 100,
-      "issue_codes": []
-    },
-    {
       "id": "profile_txt",
       "filename": "student_profile_note.txt",
-      "score": 100,
-      "issue_codes": []
-    },
-    {
-      "id": "instructional_memo_md",
-      "filename": "workshop_facilitation_memo.md",
-      "score": 100,
-      "issue_codes": []
-    },
-    {
-      "id": "repair_receipt_png",
-      "filename": "east_repair_receipt.png",
       "score": 100,
       "issue_codes": []
     }
@@ -157,30 +175,33 @@
         "status": "needs_review",
         "title": "Wolfie Studies Presentation Guide",
         "broad_type": "memo",
-        "category": "presentation_guide",
-        "profile": "presentation_guide",
-        "subtype": "presentation_guide",
-        "summary_short": "Presentation guide for Wolfie Studies Presentation Guide. Key details: Help student presenters explain research findings clearly to a mixed audience; preparation guidance: Preparation: Rehearse the full talk twice, tes.",
-        "summary_detailed": "This is a presentation guide titled Wolfie Studies Presentation Guide. It mainly highlights Help student presenters explain research findings clearly to a mixed audience, preparation guidance: Preparation: Rehearse the full talk tw. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "category": "instructional_memo",
+        "profile": "instructional_memo",
+        "subtype": "instructional_memo",
+        "summary_short": "Instructional memo for Wolfie Studies Presentation Guide. Key details: process keywords: purpose, audience, slide guidance; No clear deadline was detected.",
+        "summary_detailed": "This is an instructional memo titled Wolfie Studies Presentation Guide. Key details include process keywords: purpose, audience, slide guidance, No clear deadline was detected, and Review the notice for required actions. Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations.",
         "action_items": [
-          "Review the preparation and delivery guidance before presenting."
+          "Review the notice for required actions."
         ],
-        "warnings": [],
+        "warnings": [
+          "No clear deadline was detected."
+        ],
         "important_points": [
-          "Presentation guide for Wolfie Studies Presentation Guide",
-          "Help student presenters explain research findings clearly to a mixed audience",
-          "preparation guidance: Preparation: Rehearse the full talk twice, test embedded media, and prepare answers for likely questions., Timing: Keep the main talk to e",
-          "Faculty reviewers, invited students, and community guests",
-          "slide flow guidance: Slide Guidance: Start with the problem, show the method, then end with takeaways and next steps",
-          "speaking notes: Speaking Notes: Keep explanations plain-language, pause after each key chart, and define acronyms aloud",
+          "Instructional memo for Wolfie Studies Presentation Guide",
+          "process keywords: purpose, audience, slide guidance",
+          "No clear deadline was detected",
+          "Review the notice for required actions",
           "Audience: Faculty reviewers, invited students, and community guests",
-          "Review the preparation and delivery guidance before presenting"
+          "Purpose: Help student presenters explain research findings clearly to a mixed audience",
+          "Preparation: Rehearse the full talk twice, test embedded media, and prepare answers for likely questions",
+          "Timing: Keep the main talk to eight minutes with two minutes for questions"
         ],
         "review_focus": [],
         "tags": [
           "education",
           "memo",
-          "presentation_guide"
+          "presentation_guide",
+          "instructional_memo"
         ],
         "provider_chain": "docx_text_extract+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
         "route": "docx_text_extract",
@@ -197,8 +218,19 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "profile_mismatch",
+          "message": "Expected one of ['presentation_guide', 'speaking_notes'], got instructional_memo."
+        },
+        {
+          "severity": "warn",
+          "code": "category_mismatch",
+          "message": "Expected category near ['presentation_guide', 'speaking_notes'], got instructional_memo."
+        }
+      ],
+      "score": 75
     },
     {
       "id": "profile_txt",
@@ -592,30 +624,30 @@
       "actual": {
         "status": "ready",
         "title": "Faculty Forum Meeting Notice",
-        "broad_type": "notice",
-        "category": "meeting_notice",
-        "profile": "meeting_notice",
-        "subtype": "meeting_notice",
-        "summary_short": "Meeting notice for Faculty Forum Meeting Notice. Key details: title: Faculty Forum Meeting Notice; line: Location: Administration Building Room 204.",
-        "summary_detailed": "This is a meeting notice titled Faculty Forum Meeting Notice. Key details include title: Faculty Forum Meeting Notice, line: Location: Administration Building Room 204, and 2026-04-29. Use it to prepare for the meeting, note the location or timing, and complete any follow-up.",
+        "broad_type": "memo",
+        "category": "instructional_memo",
+        "profile": "instructional_memo",
+        "subtype": "instructional_memo",
+        "summary_short": "Instructional memo for Faculty Forum Meeting Notice. Key details: process keywords: purpose; line: Faculty Forum Meeting Notice.",
+        "summary_detailed": "This is an instructional memo titled Faculty Forum Meeting Notice. Key details include process keywords: purpose, line: Faculty Forum Meeting Notice, and Review the key next steps and follow-up details. Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations.",
         "action_items": [
-          "Review the requested preparation details before the meeting."
+          "Review the key next steps and follow-up details."
         ],
         "warnings": [],
         "important_points": [
-          "Meeting notice for Faculty Forum Meeting Notice",
-          "title: Faculty Forum Meeting Notice",
-          "line: Location: Administration Building Room 204",
-          "2026-04-29",
-          "Review the requested preparation details before the meeting",
+          "Instructional memo for Faculty Forum Meeting Notice",
+          "process keywords: purpose",
           "line: Faculty Forum Meeting Notice",
+          "title: Faculty Forum Meeting Notice",
           "line: Meeting Date: April 29, 2026 at 2:00 PM",
+          "Review the key next steps and follow-up details",
+          "line: Location: Administration Building Room 204",
           "line: Action: Bring department feedback and unresolved questions"
         ],
         "review_focus": [],
         "tags": [
-          "notice",
-          "meeting_notice"
+          "memo",
+          "instructional_memo"
         ],
         "provider_chain": "xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
         "route": "structured_text_path",
@@ -632,8 +664,24 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "profile_mismatch",
+          "message": "Expected one of ['meeting_notice'], got instructional_memo."
+        },
+        {
+          "severity": "warn",
+          "code": "category_mismatch",
+          "message": "Expected category near ['meeting_notice'], got instructional_memo."
+        },
+        {
+          "severity": "warn",
+          "code": "broad_type_mismatch",
+          "message": "Expected broad type near ['notice'], got memo."
+        }
+      ],
+      "score": 68
     },
     {
       "id": "invoice_csv",
@@ -1230,34 +1278,33 @@
       "actual": {
         "status": "ready",
         "title": "Advising Workflow Rollout Notice",
-        "broad_type": "notice",
-        "category": "meeting_notice",
-        "profile": "meeting_notice",
-        "subtype": "meeting_notice",
-        "summary_short": "Meeting notice for Advising Workflow Rollout Notice. Key details: line: Notice Type: Implementation Meeting; line: Location: Administration Building Room 204 and Teams backup link.",
-        "summary_detailed": "This is a meeting notice titled Advising Workflow Rollout Notice. Key details include line: Notice Type: Implementation Meeting, line: Location: Administration Building Room 204 and Teams backup link, and 2026-05-05. Use it to prepare for the meeting, note the location or timing, and complete any follow-up.",
+        "broad_type": "memo",
+        "category": "instructional_memo",
+        "profile": "instructional_memo",
+        "subtype": "instructional_memo",
+        "summary_short": "Instructional memo for Advising Workflow Rollout Notice. Key details: process keywords: purpose, required, deadline; line: Notice Type: Implementation Meeting.",
+        "summary_detailed": "This is an instructional memo titled Advising Workflow Rollout Notice. Key details include process keywords: purpose, required, deadline, line: Notice Type: Implementation Meeting, and line: Follow-up Deadline: Final exception list. Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations.",
         "action_items": [
-          "Confirm required attendees and preparation before the meeting.",
-          "Confirm the right contact channel for questions or exceptions."
+          "Review for follow-up actions."
         ],
         "warnings": [],
         "important_points": [
-          "Meeting notice for Advising Workflow Rollout Notice",
+          "Instructional memo for Advising Workflow Rollout Notice",
+          "process keywords: purpose, required, deadline",
           "line: Notice Type: Implementation Meeting",
-          "line: Location: Administration Building Room 204 and Teams backup link",
-          "2026-05-05",
-          "meeting date: May 5, 2026 at 9:30 AM",
-          "follow up deadline: May 7, 2026 by 5:00 PM",
-          "meeting location: Administration Building Room 204 and Teams backup link",
-          "required attendees: undergraduate program directors, advising coordinators, registrar liaison"
+          "line: Meeting Date: May 5, 2026 at 9:30 AM",
+          "line: Contact: advising-implementation@example.edu",
+          "line: Follow-up Deadline: Final exception list due May 7, 2026 by 5:00 PM",
+          "Review for follow-up actions",
+          "line: Required Attendees: undergraduate program directors, advising coordinators, registrar liaison, and department schedulers"
         ],
         "review_focus": [],
         "tags": [
+          "memo",
           "food_drink",
-          "notice",
           "review",
           "time-sensitive",
-          "meeting_notice"
+          "instructional_memo"
         ],
         "provider_chain": "xml_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
         "route": "structured_text_path",
@@ -1274,8 +1321,24 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "profile_mismatch",
+          "message": "Expected one of ['meeting_notice'], got instructional_memo."
+        },
+        {
+          "severity": "warn",
+          "code": "category_mismatch",
+          "message": "Expected category near ['meeting_notice'], got instructional_memo."
+        },
+        {
+          "severity": "warn",
+          "code": "broad_type_mismatch",
+          "message": "Expected broad type near ['notice', 'document'], got memo."
+        }
+      ],
+      "score": 68
     },
     {
       "id": "multirow_invoice_csv",
@@ -1441,46 +1504,76 @@
   "comparison": {
     "previous_mode": "gemma",
     "current_mode": "gemma",
-    "previous_average_score": 95.06,
-    "current_average_score": 100.0,
-    "average_score_delta": 4.94,
+    "previous_average_score": 92.17,
+    "current_average_score": 95.06,
+    "average_score_delta": 2.89,
     "improved_documents": [
       {
+        "id": "instructional_memo_md",
+        "delta": 7
+      },
+      {
+        "id": "invoice_csv",
+        "delta": 7
+      },
+      {
+        "id": "invoice_xlsx",
+        "delta": 7
+      },
+      {
+        "id": "long_course_guide_pdf",
+        "delta": 7
+      },
+      {
+        "id": "long_policy_memo_md",
+        "delta": 78
+      },
+      {
+        "id": "multirow_invoice_csv",
+        "delta": 7
+      }
+    ],
+    "regressed_documents": [
+      {
         "id": "presentation_docx",
-        "delta": 25
+        "delta": -25
       },
       {
         "id": "meeting_notice_xml",
-        "delta": 32
+        "delta": -25
       },
       {
         "id": "nested_meeting_notice_xml",
-        "delta": 32
+        "delta": -11
       }
     ],
-    "regressed_documents": [],
     "unchanged_documents": [
       "syllabus_pdf",
       "profile_txt",
-      "instructional_memo_md",
       "repair_receipt_png",
       "resume_json",
       "utility_bill_html",
-      "invoice_csv",
-      "invoice_xlsx",
-      "long_course_guide_pdf",
-      "long_policy_memo_md",
       "long_utility_bill_html",
       "detailed_resume_json",
       "noisy_repair_bill_png",
-      "multirow_invoice_csv",
       "profile_record_docx"
     ],
     "previous_issue_counts": {
+      "summary_repetitive": 7,
+      "action_item_weak": 2,
+      "generic_profile": 1,
+      "profile_mismatch": 1,
+      "category_mismatch": 1,
+      "broad_type_mismatch": 1,
+      "summary_generic": 1,
+      "generic_profile_specific_category": 1,
+      "gemma_output_fallback_like": 1,
+      "action_item_too_long": 1
+    },
+    "current_issue_counts": {
       "profile_mismatch": 3,
       "category_mismatch": 3,
       "broad_type_mismatch": 2
-    },
-    "current_issue_counts": {}
+    }
   }
 }

@@ -1,47 +1,80 @@
 {
-  "label": "gemma-harder-refine2-rerun",
+  "label": "gemma-harder-baseline",
   "mode": "gemma",
-  "backend_url": "http://127.0.0.1:8001",
-  "generated_at": "2026-04-28T20:23:22.752592",
+  "backend_url": "http://localhost:8001",
+  "generated_at": "2026-04-28T19:15:57.966361",
   "spec_version": 1,
   "documents_total": 18,
-  "average_score": 100.0,
+  "average_score": 92.17,
   "status_counts": {
     "ready": 11,
     "needs_review": 7
   },
-  "severity_counts": {},
-  "issue_counts": {},
+  "severity_counts": {
+    "warn": 15,
+    "fail": 2
+  },
+  "issue_counts": {
+    "summary_repetitive": 7,
+    "action_item_weak": 2,
+    "generic_profile": 1,
+    "profile_mismatch": 1,
+    "category_mismatch": 1,
+    "broad_type_mismatch": 1,
+    "summary_generic": 1,
+    "generic_profile_specific_category": 1,
+    "gemma_output_fallback_like": 1,
+    "action_item_too_long": 1
+  },
   "problem_documents": [
     {
-      "id": "syllabus_pdf",
-      "filename": "syllabus_system_fundamentals.pdf",
-      "score": 100,
-      "issue_codes": []
+      "id": "long_policy_memo_md",
+      "filename": "lab_access_policy_memo.md",
+      "score": 22,
+      "issue_codes": [
+        "generic_profile",
+        "profile_mismatch",
+        "category_mismatch",
+        "broad_type_mismatch",
+        "summary_generic",
+        "summary_repetitive",
+        "generic_profile_specific_category",
+        "gemma_output_fallback_like"
+      ]
     },
     {
-      "id": "presentation_docx",
-      "filename": "wolfie_studies_presentation_guide.docx",
-      "score": 100,
-      "issue_codes": []
-    },
-    {
-      "id": "profile_txt",
-      "filename": "student_profile_note.txt",
-      "score": 100,
-      "issue_codes": []
+      "id": "nested_meeting_notice_xml",
+      "filename": "advising_rollout_notice.xml",
+      "score": 79,
+      "issue_codes": [
+        "summary_repetitive",
+        "action_item_too_long",
+        "action_item_weak"
+      ]
     },
     {
       "id": "instructional_memo_md",
       "filename": "workshop_facilitation_memo.md",
-      "score": 100,
-      "issue_codes": []
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
     },
     {
-      "id": "repair_receipt_png",
-      "filename": "east_repair_receipt.png",
-      "score": 100,
-      "issue_codes": []
+      "id": "meeting_notice_xml",
+      "filename": "faculty_forum_notice.xml",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
+    },
+    {
+      "id": "invoice_csv",
+      "filename": "april_consulting_invoice.csv",
+      "score": 93,
+      "issue_codes": [
+        "summary_repetitive"
+      ]
     }
   ],
   "results": [
@@ -82,8 +115,8 @@
         "category": "syllabus",
         "profile": "syllabus",
         "subtype": "syllabus",
-        "summary_short": "Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus. Key details: required materials: Required Materials: Course reader, POSIX programming reference, lab notebook; exam details: Grading: Labs 30%, Midterm 25%, Fin.",
-        "summary_detailed": "This is a syllabus titled CSE 320: System Fundamentals II (L01, Stark) Syllabus. It mainly covers required materials: Required Materials: Course reader, POSIX programming reference, lab notebook, exam details: Grading: Labs 30%, Midterm 25%,. Use it to track expectations, deadlines, materials, and course work that need attention.",
+        "summary_short": "Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus. Key details: Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus; CSE 320: System Fundamentals II (L01, Stark) Syllabus.",
+        "summary_detailed": "This is a syllabus titled CSE 320: System Fundamentals II (L01, Stark) Syllabus. It mainly covers Course guide with title, semester, instructor, materials, policies, and exam dates and Syllabus for CSE 320: System Fundamentals II (L01, Stark. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review material and resource requirements.",
           "Review grading and exam-related requirements.",
@@ -94,11 +127,11 @@
           "Syllabus for CSE 320: System Fundamentals II (L01, Stark) Syllabus",
           "CSE 320: System Fundamentals II (L01, Stark) Syllabus",
           "CSE 320",
+          "Course guide with title, semester, instructor, materials, policies, and exam dates",
           "required materials: Required Materials: Course reader, POSIX programming reference, lab notebook",
           "exam details: Grading: Labs 30%, Midterm 25%, Final 30%, Participation 15%., Exam Dates: Midterm October 14, 2026. Final December 16, 2026",
           "course name: CSE 320: System Fundamentals II",
-          "Fall 2026",
-          "Prof. Eleanor Stark"
+          "Fall 2026"
         ],
         "review_focus": [],
         "tags": [
@@ -160,8 +193,8 @@
         "category": "presentation_guide",
         "profile": "presentation_guide",
         "subtype": "presentation_guide",
-        "summary_short": "Presentation guide for Wolfie Studies Presentation Guide. Key details: Help student presenters explain research findings clearly to a mixed audience; preparation guidance: Preparation: Rehearse the full talk twice, tes.",
-        "summary_detailed": "This is a presentation guide titled Wolfie Studies Presentation Guide. It mainly highlights Help student presenters explain research findings clearly to a mixed audience, preparation guidance: Preparation: Rehearse the full talk tw. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Presentation guide for Wolfie Studies Presentation Guide. Key details: Presentation guide for Wolfie Studies Presentation Guide; Help student presenters explain research findings clearly to a mixed audience.",
+        "summary_detailed": "This is a presentation guide titled Wolfie Studies Presentation Guide. It mainly highlights Presentation guide with audience, slide flow, speaking notes, and rehearsal guidance and Help student presenters explain research findings . Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the preparation and delivery guidance before presenting."
         ],
@@ -169,12 +202,12 @@
         "important_points": [
           "Presentation guide for Wolfie Studies Presentation Guide",
           "Help student presenters explain research findings clearly to a mixed audience",
+          "Presentation guide with audience, slide flow, speaking notes, and rehearsal guidance",
           "preparation guidance: Preparation: Rehearse the full talk twice, test embedded media, and prepare answers for likely questions., Timing: Keep the main talk to e",
           "Faculty reviewers, invited students, and community guests",
           "slide flow guidance: Slide Guidance: Start with the problem, show the method, then end with takeaways and next steps",
           "speaking notes: Speaking Notes: Keep explanations plain-language, pause after each key chart, and define acronyms aloud",
-          "Audience: Faculty reviewers, invited students, and community guests",
-          "Review the preparation and delivery guidance before presenting"
+          "Audience: Faculty reviewers, invited students, and community guests"
         ],
         "review_focus": [],
         "tags": [
@@ -230,8 +263,8 @@
         "category": "profile_record",
         "profile": "profile_record",
         "subtype": "education_record",
-        "summary_short": "Profile record for Profile Note. Key details: identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science; age: 21.",
-        "summary_detailed": "This is a profile record titled Profile Note. It brings together identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science, age: 21, and department: CEAS. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Profile record for Profile Note. Key details: Profile record for Profile Note; identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science.",
+        "summary_detailed": "This is a profile record titled Profile Note. It brings together Profile record for Profile Note, identity facts: Name: Maya Patel, Student ID: 20260143, Major: Computer Science, and age: 21. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the key identity details for accuracy."
         ],
@@ -305,8 +338,8 @@
         "category": "instructional_memo",
         "profile": "instructional_memo",
         "subtype": "instructional_memo",
-        "summary_short": "Instructional memo for Workshop Facilitation Memo. Key details: process keywords: follow-up; Amount is missing; review before expense tracking.",
-        "summary_detailed": "This is an instructional memo titled Workshop Facilitation Memo. Key details include process keywords: follow-up, Amount is missing; review before expense tracking, and Arrival: Arrive 30 minutes early and test the projector. Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations.",
+        "summary_short": "Instructional memo for Workshop Facilitation Memo. Key details: Instructional memo for Workshop Facilitation Memo; Instructional memo with guidance, expectations, and follow-up steps.",
+        "summary_detailed": "This is an instructional memo titled Workshop Facilitation Memo. Key details include Instructional memo with guidance, expectations, and follow-up steps and Amount is missing; review before expense tracking. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the key next steps and follow-up details."
         ],
@@ -315,7 +348,7 @@
         ],
         "important_points": [
           "Instructional memo for Workshop Facilitation Memo",
-          "process keywords: follow-up",
+          "Instructional memo with guidance, expectations, and follow-up steps",
           "Amount is missing; review before expense tracking",
           "Arrival: Arrive 30 minutes early and test the projector",
           "Materials: Bring printed sign-in sheets, markers, and discussion cards",
@@ -345,8 +378,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
     },
     {
       "id": "repair_receipt_png",
@@ -381,8 +420,8 @@
         "category": "repair_service_receipt",
         "profile": "repair_service_receipt",
         "subtype": "repair_service_receipt",
-        "summary_short": "Receipt from East Repair Inc. Key details: itemized lines: Front and rear brake cables 100.00, New set of pedal arms 30.00, Labor 3hrs 15.00; item style: parts_and_labor.",
-        "summary_detailed": "This is a repair service receipt titled East Repair Inc. receipt. Key details include Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges and itemized lines: Front and rear brake cables 1. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Receipt from East Repair Inc. Key details: Receipt from East Repair Inc; Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges.",
+        "summary_detailed": "This is a repair service receipt titled East Repair Inc. receipt. Key details include Repair-service receipt from East Repair Inc. totaling $154.06 with parts and labor charges and itemized lines: Front and rear brake cables 1. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "File this receipt for expense export or reimbursement records."
         ],
@@ -452,21 +491,21 @@
         "category": "resume_profile",
         "profile": "resume_profile",
         "subtype": "resume_profile",
-        "summary_short": "Resume profile for Alex Morgan. Key details: section hints: education, experience, projects; contact links: https://github.com/alexmorgan, https://linkedin.com/in/alexmorgan.",
-        "summary_detailed": "This is a resume profile titled Alex Morgan. It brings together section hints: education, experience, projects, contact links: https://github.com/alexmorgan, https://linkedin.com/in/alexmorgan, and technic. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Resume profile for Alex Morgan. Key details: Resume profile for Alex Morgan; Resume-style document highlighting education, experience, projects, and skills.",
+        "summary_detailed": "This is a resume profile titled Alex Morgan. It brings together Resume-style document highlighting education, experience, projects, and skills and Resume profile for Alex Morgan. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review education, experience, projects, and skills for completeness."
         ],
         "warnings": [],
         "important_points": [
           "Resume profile for Alex Morgan",
+          "Resume-style document highlighting education, experience, projects, and skills",
           "Alex Morgan",
           "section hints: education, experience, projects",
           "contact links: https://github.com/alexmorgan, https://linkedin.com/in/alexmorgan",
           "Review education, experience, projects, and skills for completeness",
           "technical skills[3]: React",
-          "technical skills[0]: Python",
-          "projects[1]: OCR-assisted document parser"
+          "technical skills[0]: Python"
         ],
         "review_focus": [],
         "tags": [
@@ -524,21 +563,21 @@
         "category": "utility_bill",
         "profile": "utility_bill",
         "subtype": "utility_bill",
-        "summary_short": "Utility bill from Harbor Power Monthly Statement. Key details: $118.42 USD; 2026-04-21.",
-        "summary_detailed": "This is a utility bill titled Harbor Power Monthly Statement. Key details include $118.42 USD, 2026-04-21, and March 1, 2026 - March 31, 2026. Use it to verify charges, due dates, account details, and payment or filing needs.",
+        "summary_short": "Utility bill from Harbor Power Monthly Statement. Key details: Utility bill from Harbor Power Monthly Statement; Utility bill or account statement showing provider, billing period, due date, and amount due.",
+        "summary_detailed": "This is a utility bill titled Harbor Power Monthly Statement. Key details include Utility bill or account statement showing provider, billing period, due date, and amount due and $118.42 USD. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Pay or schedule this bill by 2026-04-21."
         ],
         "warnings": [],
         "important_points": [
           "Utility bill from Harbor Power Monthly Statement",
+          "Utility bill or account statement showing provider, billing period, due date, and amount due",
           "$118.42 USD",
           "2026-04-21",
           "Harbor Power Monthly Statement",
           "March 1, 2026 - March 31, 2026",
           "statement style: utility_bill",
-          "billing keywords: provider, billing period, amount due",
-          "Amount Due: $118.42"
+          "billing keywords: provider, billing period, amount due"
         ],
         "review_focus": [],
         "tags": [
@@ -596,8 +635,8 @@
         "category": "meeting_notice",
         "profile": "meeting_notice",
         "subtype": "meeting_notice",
-        "summary_short": "Meeting notice for Faculty Forum Meeting Notice. Key details: title: Faculty Forum Meeting Notice; line: Location: Administration Building Room 204.",
-        "summary_detailed": "This is a meeting notice titled Faculty Forum Meeting Notice. Key details include title: Faculty Forum Meeting Notice, line: Location: Administration Building Room 204, and 2026-04-29. Use it to prepare for the meeting, note the location or timing, and complete any follow-up.",
+        "summary_short": "Meeting notice for Faculty Forum Meeting Notice. Key details: Meeting notice for Faculty Forum Meeting Notice; title: Faculty Forum Meeting Notice.",
+        "summary_detailed": "This is a meeting notice titled Faculty Forum Meeting Notice. Key details include Meeting notice with time, location, purpose, and follow-up details. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the requested preparation details before the meeting."
         ],
@@ -605,12 +644,12 @@
         "important_points": [
           "Meeting notice for Faculty Forum Meeting Notice",
           "title: Faculty Forum Meeting Notice",
+          "Meeting notice with time, location, purpose, and follow-up details",
           "line: Location: Administration Building Room 204",
           "2026-04-29",
           "Review the requested preparation details before the meeting",
           "line: Faculty Forum Meeting Notice",
-          "line: Meeting Date: April 29, 2026 at 2:00 PM",
-          "line: Action: Bring department feedback and unresolved questions"
+          "line: Meeting Date: April 29, 2026 at 2:00 PM"
         ],
         "review_focus": [],
         "tags": [
@@ -632,8 +671,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
     },
     {
       "id": "invoice_csv",
@@ -665,8 +710,8 @@
         "category": "invoice",
         "profile": "invoice",
         "subtype": "invoice",
-        "summary_short": "Invoice for Invoice Number | INV-2048. Key details: billing keywords: invoice, vendor, invoice date; Review deadlines and required submission details.",
-        "summary_detailed": "This is an invoice titled Invoice Number | INV-2048. Key details include billing keywords: invoice, vendor, invoice date, Review deadlines and required submission details, and Amount Due | 1500.00. Use it to verify charges, due dates, account details, and payment or filing needs.",
+        "summary_short": "Invoice for Invoice Number | INV-2048. Key details: Invoice for Invoice Number | INV-2048; Invoice document with vendor, billing details, amount due, and payment timing information.",
+        "summary_detailed": "This is an invoice titled Invoice Number | INV-2048. Key details include Invoice document with vendor, billing details, amount due, and payment timing information and Invoice for Invoice Number | INV-2048. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review deadlines and required submission details.",
           "Review billed amounts and line-item accuracy before paying."
@@ -674,13 +719,13 @@
         "warnings": [],
         "important_points": [
           "Invoice for Invoice Number | INV-2048",
+          "Invoice document with vendor, billing details, amount due, and payment timing information",
           "invoice number: INV-2048",
           "billing keywords: invoice, vendor, invoice date",
           "Review deadlines and required submission details",
           "Invoice Number | INV-2048",
           "Amount Due | 1500.00",
-          "Review billed amounts and line-item accuracy before paying",
-          "Due Date | 2026-04-30"
+          "Review billed amounts and line-item accuracy before paying"
         ],
         "review_focus": [],
         "tags": [
@@ -705,8 +750,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
     },
     {
       "id": "invoice_xlsx",
@@ -738,8 +789,8 @@
         "category": "invoice",
         "profile": "invoice",
         "subtype": "invoice",
-        "summary_short": "Invoice for Vendor Studio North Services receipt. Key details: invoice number: Invoice; billing keywords: invoice, vendor, invoice date.",
-        "summary_detailed": "This is an invoice titled Vendor Studio North Services receipt. Key details include invoice number: Invoice, billing keywords: invoice, vendor, invoice date, and Review deadlines and required submission details. Use it to verify charges, due dates, account details, and payment or filing needs.",
+        "summary_short": "Invoice for Vendor Studio North Services receipt. Key details: Invoice for Vendor Studio North Services receipt; Invoice document with vendor, billing details, amount due, and payment timing information.",
+        "summary_detailed": "This is an invoice titled Vendor Studio North Services receipt. Key details include Invoice document with vendor, billing details, amount due, and payment timing information, Invoice for Vendor Studio North Services receipt,. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review deadlines and required submission details.",
           "Review billed amounts and line-item accuracy before paying."
@@ -747,13 +798,13 @@
         "warnings": [],
         "important_points": [
           "Invoice for Vendor Studio North Services receipt",
+          "Invoice document with vendor, billing details, amount due, and payment timing information",
           "invoice number: Invoice",
           "billing keywords: invoice, vendor, invoice date",
           "Review deadlines and required submission details",
           "Invoice | ST-9932",
           "Tax | 67.20",
-          "Sheet: Invoice",
-          "Subtotal | 840.00"
+          "Sheet: Invoice"
         ],
         "review_focus": [],
         "tags": [
@@ -779,8 +830,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
     },
     {
       "id": "long_course_guide_pdf",
@@ -822,11 +879,11 @@
         "category": "course_guide",
         "profile": "course_guide",
         "subtype": "syllabus",
-        "summary_short": "Course guide for IDS 410: Advanced Data Stewardship Course Guide. Key details: required materials: Required Materials: Research Data Management Handbook, institutional repository guide, Git; policies: communication., Grading: .",
-        "summary_detailed": "This is a course guide titled IDS 410: Advanced Data Stewardship Course Guide. It mainly covers required materials: Required Materials: Research Data Management Handbook, institutional repository guide, Git, policies: communication., Gradi. Use it to track expectations, deadlines, materials, and course work that need attention.",
+        "summary_short": "Course guide for IDS 410: Advanced Data Stewardship Course Guide. Key details: Course guide for IDS 410: Advanced Data Stewardship Course Guide; IDS 410: Advanced Data Stewardship Course Guide.",
+        "summary_detailed": "This is a course guide titled IDS 410: Advanced Data Stewardship Course Guide. It mainly covers Course guide with title, semester, instructor, materials, policies, and exam dates and Course guide for IDS 410: Advanced Data Stewardship Cour. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review material and resource requirements.",
-          "Review course communication expectations.",
+          "Communication.",
           "Review grading and exam-related requirements.",
           "Review the document for deadlines or required submission steps."
         ],
@@ -835,11 +892,11 @@
           "Course guide for IDS 410: Advanced Data Stewardship Course Guide",
           "IDS 410: Advanced Data Stewardship Course Guide",
           "IDS 410",
+          "Course guide with title, semester, instructor, materials, policies, and exam dates",
           "required materials: Required Materials: Research Data Management Handbook, institutional repository guide, Git",
           "policies: communication., Grading: Labs 20%, data inventory memo 15%, privacy risk analysis 20%, repository readiness, Policy on Late Work: Students may use one",
           "exam details: 9, repository readiness plan due November 6, final stewardship portfolio due December 11., plan 20%, final portfolio 20%, participation and peer r",
-          "course name: IDS 410",
-          "Dr. Lena Ortiz. Office Hours: Monday 10:00 AM - 12:00 PM and Wednesday 3:00 PM"
+          "course name: IDS 410"
         ],
         "review_focus": [],
         "tags": [
@@ -866,8 +923,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "action_item_weak",
+          "message": "Action item is not very user-facing or review-oriented: `Communication.`"
+        }
+      ],
+      "score": 93
     },
     {
       "id": "long_policy_memo_md",
@@ -904,12 +967,12 @@
       "actual": {
         "status": "needs_review",
         "title": "Laboratory Access Policy Implementation Memo",
-        "broad_type": "memo",
-        "category": "instructional_memo",
-        "profile": "instructional_memo",
-        "subtype": "instructional_memo",
-        "summary_short": "Instructional memo for Laboratory Access Policy Implementation Memo. Key details: Requires supervisor verification of safety training, project assignment, emergency contact information, and expiration date before submitting a req.",
-        "summary_detailed": "This is an instructional memo titled Laboratory Access Policy Implementation Memo. Key details include Requires supervisor verification of safety training, project assignment, emergency contact information, and expiration date before submittin. Use it to follow the stated procedure, deadlines, documentation rules, and ownership expectations.",
+        "broad_type": "notice",
+        "category": "education",
+        "profile": "generic_document",
+        "subtype": "generic_document",
+        "summary_short": "Generic document for Laboratory Access Policy Implementation Memo. Key details: Generic document for Laboratory Access Policy Implementation Memo; Updated process for granting after-hours laboratory access to research assistant.",
+        "summary_detailed": "This is a generic document titled Laboratory Access Policy Implementation Memo. Key details include Updated process for granting after-hours laboratory access to research assistants, visiting students, and temporary project staff and Generi. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the document for deadlines or required submission steps."
         ],
@@ -917,22 +980,21 @@
           "No clear deadline was detected."
         ],
         "important_points": [
-          "Instructional memo for Laboratory Access Policy Implementation Memo",
-          "Requires supervisor verification of safety training, project assignment, emergency contact information, and expiration date before submitting a request",
-          "process keywords: purpose, scope, required",
-          "Department coordinators review the request packet, facilities staff activate card permissions, and the research office performs a weekly exception review",
+          "Generic document for Laboratory Access Policy Implementation Memo",
+          "Updated process for granting after-hours laboratory access to research assistants, visiting students, and temporary project staff",
+          "target group: research assistants, visiting students, temporary project staff",
+          "deadlines: monday activation: Thursday at 3:00 PM, emergency requests: two business days",
+          "documentation requirements: student name, campus ID, sponsor, room list, access window, training certificate date, justification for after-hours access",
+          "access type: after-hours",
           "No clear deadline was detected",
-          "Review the document for deadlines or required submission steps",
-          "Laboratory Access Policy Implementation Memo",
-          "Follow-up: Send questions and exception requests to research-operations@example.edu with the subject line Lab Access Exception"
+          "audit procedure: export active-access report on the first business day of each month"
         ],
         "review_focus": [],
         "tags": [
-          "memo",
           "education",
+          "notice",
           "review",
-          "time-sensitive",
-          "instructional_memo"
+          "time-sensitive"
         ],
         "provider_chain": "md_direct+structured_text_path+heuristic_fallback+heuristic_interpretation+ai_interpretation_gemma_fallback_small+ai_summary_refinement",
         "route": "structured_text_path",
@@ -949,8 +1011,49 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "fail",
+          "code": "generic_profile",
+          "message": "Document stayed generic even though stronger evidence was expected."
+        },
+        {
+          "severity": "fail",
+          "code": "profile_mismatch",
+          "message": "Expected one of ['instructional_memo'], got generic_document."
+        },
+        {
+          "severity": "warn",
+          "code": "category_mismatch",
+          "message": "Expected category near ['instructional_memo'], got education."
+        },
+        {
+          "severity": "warn",
+          "code": "broad_type_mismatch",
+          "message": "Expected broad type near ['memo', 'document'], got notice."
+        },
+        {
+          "severity": "warn",
+          "code": "summary_generic",
+          "message": "Detailed summary still sounds generic."
+        },
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        },
+        {
+          "severity": "warn",
+          "code": "generic_profile_specific_category",
+          "message": "Category is specific but profile stayed generic."
+        },
+        {
+          "severity": "warn",
+          "code": "gemma_output_fallback_like",
+          "message": "Gemma was requested, but the final output still feels too fallback-like or under-explained."
+        }
+      ],
+      "score": 22
     },
     {
       "id": "long_utility_bill_html",
@@ -991,21 +1094,21 @@
         "category": "utility_bill",
         "profile": "utility_bill",
         "subtype": "utility_bill",
-        "summary_short": "Utility bill from Ridgeview Water Authority Statement. Key details: $97.30 USD; 2026-04-12.",
-        "summary_detailed": "This is a utility bill titled Ridgeview Water Authority Statement. Key details include $97.30 USD, 2026-04-12, and February 15, 2026 - March 16, 2026. Use it to verify charges, due dates, account details, and payment or filing needs.",
+        "summary_short": "Utility bill from Ridgeview Water Authority Statement. Key details: Utility bill from Ridgeview Water Authority Statement; Utility bill or account statement showing provider, billing period, due date, and amount due.",
+        "summary_detailed": "This is a utility bill titled Ridgeview Water Authority Statement. Key details include Utility bill or account statement showing provider, billing period, due date, and amount due and $97.30 USD. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Pay or schedule this bill by 2026-04-12."
         ],
         "warnings": [],
         "important_points": [
           "Utility bill from Ridgeview Water Authority Statement",
+          "Utility bill or account statement showing provider, billing period, due date, and amount due",
           "$97.30 USD",
           "2026-04-12",
           "February 15, 2026 - March 16, 2026",
           "Ridgeview Water Authority Statement",
           "statement style: utility_bill",
-          "billing keywords: billing period, amount due, due date",
-          "Amount Due: $97.30"
+          "billing keywords: billing period, amount due, due date"
         ],
         "review_focus": [],
         "tags": [
@@ -1071,21 +1174,21 @@
         "category": "resume_profile",
         "profile": "resume_profile",
         "subtype": "resume_profile",
-        "summary_short": "Resume profile for Samira Chen. Key details: section hints: education, experience, projects; contact links: samira.chen@example.com, https://linkedin.com/in/samirachen, https://github.com/sami.",
-        "summary_detailed": "This is a resume profile titled Samira Chen. It brings together section hints: education, experience, projects, contact links: samira.chen@example.com, https://linkedin.com/in/samirachen, https://github.co. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Resume profile for Samira Chen. Key details: Resume profile for Samira Chen; Resume-style document highlighting education, experience, projects, and skills.",
+        "summary_detailed": "This is a resume profile titled Samira Chen. It brings together Resume-style document highlighting education, experience, projects, and skills and Resume profile for Samira Chen. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review education, experience, projects, and skills for completeness."
         ],
         "warnings": [],
         "important_points": [
           "Resume profile for Samira Chen",
+          "Resume-style document highlighting education, experience, projects, and skills",
           "Samira Chen",
           "section hints: education, experience, projects",
           "contact links: samira.chen@example.com, https://linkedin.com/in/samirachen, https://github.com/samirachen",
           "Review education, experience, projects, and skills for completeness",
           "skills[0]: SQL",
-          "skills[2]: dbt",
-          "skills[1]: Python"
+          "skills[2]: dbt"
         ],
         "review_focus": [],
         "tags": [
@@ -1153,8 +1256,8 @@
         "category": "repair_service_receipt",
         "profile": "repair_service_receipt",
         "subtype": "repair_service_receipt",
-        "summary_short": "Receipt from Acct BC-4491 1 Ticket WO-7718. Key details: itemized lines: 19.75, 67.50 \\ \\, 4.25 '; item style: parts_and_labor.",
-        "summary_detailed": "This is a repair service receipt titled Acct BC-4491 1 Ticket WO-7718 receipt. Key details include Repair-service receipt from Acct BC-4491 1 Ticket WO-7718 totaling $170.91 with parts and labor charges and itemized lines: 19.75, 67.50 \\ \\. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Receipt from Acct BC-4491 1 Ticket WO-7718. Key details: Receipt from Acct BC-4491 1 Ticket WO-7718; Repair-service receipt from Acct BC-4491 1 Ticket WO-7718 totaling $170.91 with parts and labor charges.",
+        "summary_detailed": "This is a repair service receipt titled Acct BC-4491 1 Ticket WO-7718 receipt. Key details include Repair-service receipt from Acct BC-4491 1 Ticket WO-7718 totaling $170.91 with parts and labor charges and itemized lines: 19.75, 67.50 \\ \\. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "File this receipt for expense export or reimbursement records."
         ],
@@ -1234,22 +1337,22 @@
         "category": "meeting_notice",
         "profile": "meeting_notice",
         "subtype": "meeting_notice",
-        "summary_short": "Meeting notice for Advising Workflow Rollout Notice. Key details: line: Notice Type: Implementation Meeting; line: Location: Administration Building Room 204 and Teams backup link.",
-        "summary_detailed": "This is a meeting notice titled Advising Workflow Rollout Notice. Key details include line: Notice Type: Implementation Meeting, line: Location: Administration Building Room 204 and Teams backup link, and 2026-05-05. Use it to prepare for the meeting, note the location or timing, and complete any follow-up.",
+        "summary_short": "Meeting notice for Advising Workflow Rollout Notice. Key details: Meeting notice for Advising Workflow Rollout Notice; line: Notice Type: Implementation Meeting.",
+        "summary_detailed": "This is a meeting notice titled Advising Workflow Rollout Notice. Key details include Meeting notice with time, location, purpose, and follow-up details and Meeting notice for Advising Workflow Rollout Notice. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
-          "Confirm required attendees and preparation before the meeting.",
-          "Confirm the right contact channel for questions or exceptions."
+          "Required Attendees: undergraduate program directors, advising coordinators, registrar liaison, and department schedulers.",
+          "Review grading and exam-related requirements."
         ],
         "warnings": [],
         "important_points": [
           "Meeting notice for Advising Workflow Rollout Notice",
           "line: Notice Type: Implementation Meeting",
+          "Meeting notice with time, location, purpose, and follow-up details",
           "line: Location: Administration Building Room 204 and Teams backup link",
           "2026-05-05",
           "meeting date: May 5, 2026 at 9:30 AM",
           "follow up deadline: May 7, 2026 by 5:00 PM",
-          "meeting location: Administration Building Room 204 and Teams backup link",
-          "required attendees: undergraduate program directors, advising coordinators, registrar liaison"
+          "meeting location: Administration Building Room 204 and Teams backup link"
         ],
         "review_focus": [],
         "tags": [
@@ -1274,8 +1377,24 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        },
+        {
+          "severity": "warn",
+          "code": "action_item_too_long",
+          "message": "Action item is too long: `Required Attendees: undergraduate program directors, advising coordinators, regi...`"
+        },
+        {
+          "severity": "warn",
+          "code": "action_item_weak",
+          "message": "Action item is not very user-facing or review-oriented: `Required Attendees: undergraduate program directors, advising coordinators, registrar liaison, and department schedulers.`"
+        }
+      ],
+      "score": 79
     },
     {
       "id": "multirow_invoice_csv",
@@ -1314,8 +1433,8 @@
         "category": "invoice",
         "profile": "invoice",
         "subtype": "invoice",
-        "summary_short": "Invoice for VendorCampus Media Services receipt. Key details: invoice number: CMS-3107; billing keywords: invoice, vendor, bill to.",
-        "summary_detailed": "This is an invoice titled VendorCampus Media Services receipt. Key details include invoice number: CMS-3107, billing keywords: invoice, vendor, bill to, and Review deadlines and required submission details. Use it to verify charges, due dates, account details, and payment or filing needs.",
+        "summary_short": "Invoice for VendorCampus Media Services receipt. Key details: Invoice for VendorCampus Media Services receipt; Invoice document with vendor, billing details, amount due, and payment timing information.",
+        "summary_detailed": "This is an invoice titled VendorCampus Media Services receipt. Key details include Invoice document with vendor, billing details, amount due, and payment timing information, Invoice for VendorCampus Media Services receipt, . Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review deadlines and required submission details.",
           "Review billed amounts and line-item accuracy before paying."
@@ -1323,13 +1442,13 @@
         "warnings": [],
         "important_points": [
           "Invoice for VendorCampus Media Services receipt",
-          "invoice number: CMS-3107",
+          "Invoice document with vendor, billing details, amount due, and payment timing information",
+          "invoice number: Number",
           "billing keywords: invoice, vendor, bill to",
           "Review deadlines and required submission details",
           "Invoice Number,CMS-3107",
           "Subtotal,1645.00",
-          "Service Fee,49.35",
-          "Total Due,1694.35"
+          "Service Fee,49.35"
         ],
         "review_focus": [],
         "tags": [
@@ -1355,8 +1474,14 @@
         ],
         "refinement_status": "ai_interpretation_gemma_fallback_small"
       },
-      "issues": [],
-      "score": 100
+      "issues": [
+        {
+          "severity": "warn",
+          "code": "summary_repetitive",
+          "message": "Detailed summary repeats concepts or phrasing in a mechanical way."
+        }
+      ],
+      "score": 93
     },
     {
       "id": "profile_record_docx",
@@ -1396,8 +1521,8 @@
         "category": "profile_record",
         "profile": "profile_record",
         "subtype": "education_record",
-        "summary_short": "Profile record for Profile Note. Key details: identity facts: Name: Priya Nair, Student ID: 20264219, Major: Mechanical Engineering; Student ID: 20264219, Program: Women in Engineering Peer Men.",
-        "summary_detailed": "This is a profile record titled Profile Note. It brings together identity facts: Name: Priya Nair, Student ID: 20264219, Major: Mechanical Engineering. Use it to confirm timing, required follow-up, and the details most relevant to the reader.",
+        "summary_short": "Profile record for Profile Note. Key details: Profile record for Profile Note; identity facts: Name: Priya Nair, Student ID: 20264219, Major: Mechanical Engineering.",
+        "summary_detailed": "This is a profile record titled Profile Note. It brings together Profile record for Profile Note, identity facts: Name: Priya Nair, Student ID: 20264219, Major: Mechanical Engineering, and year: Sophomore. Use it to review the relevant details, confirm any timing or follow-up needs, and keep the document filed in the right context.",
         "action_items": [
           "Review the key identity details for accuracy."
         ],
@@ -1437,50 +1562,5 @@
       "issues": [],
       "score": 100
     }
-  ],
-  "comparison": {
-    "previous_mode": "gemma",
-    "current_mode": "gemma",
-    "previous_average_score": 95.06,
-    "current_average_score": 100.0,
-    "average_score_delta": 4.94,
-    "improved_documents": [
-      {
-        "id": "presentation_docx",
-        "delta": 25
-      },
-      {
-        "id": "meeting_notice_xml",
-        "delta": 32
-      },
-      {
-        "id": "nested_meeting_notice_xml",
-        "delta": 32
-      }
-    ],
-    "regressed_documents": [],
-    "unchanged_documents": [
-      "syllabus_pdf",
-      "profile_txt",
-      "instructional_memo_md",
-      "repair_receipt_png",
-      "resume_json",
-      "utility_bill_html",
-      "invoice_csv",
-      "invoice_xlsx",
-      "long_course_guide_pdf",
-      "long_policy_memo_md",
-      "long_utility_bill_html",
-      "detailed_resume_json",
-      "noisy_repair_bill_png",
-      "multirow_invoice_csv",
-      "profile_record_docx"
-    ],
-    "previous_issue_counts": {
-      "profile_mismatch": 3,
-      "category_mismatch": 3,
-      "broad_type_mismatch": 2
-    },
-    "current_issue_counts": {}
-  }
+  ]
 }

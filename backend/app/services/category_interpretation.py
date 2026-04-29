@@ -176,17 +176,6 @@ class CategoryInterpretationService:
                 confidence=0.85,
             )
 
-        if document.document_type == DocumentType.memo and self._looks_like_instructional_memo(lowered):
-            return CategoryInterpretation(
-                category="instructional_memo",
-                profile="instructional_memo",
-                subtype="instructional_memo",
-                title_hint=title_hint,
-                summary_hint="Instructional memo with guidance, expectations, and follow-up steps.",
-                reasons=["Memo text reads like instructions or guidance rather than an alert."],
-                confidence=0.74,
-            )
-
         if self._looks_like_meeting_notice(lowered):
             return CategoryInterpretation(
                 category="meeting_notice",
@@ -196,6 +185,23 @@ class CategoryInterpretationService:
                 summary_hint="Meeting notice with time, location, purpose, and follow-up details.",
                 reasons=["Detected meeting/date/location language."],
                 confidence=0.76,
+            )
+
+        if self._looks_like_instructional_memo(lowered):
+            return CategoryInterpretation(
+                category="instructional_memo",
+                profile="instructional_memo",
+                subtype="instructional_memo",
+                title_hint=title_hint or "Instructional Memo",
+                summary_hint="Instructional memo with process guidance, requirements, deadlines, and follow-up details.",
+                key_fields={
+                    "process_keywords": self._keyword_hits(
+                        lowered,
+                        ["purpose", "scope", "required", "approval", "documentation", "deadline", "audit", "revocation", "follow-up"],
+                    ),
+                },
+                reasons=["Detected memo-style process guidance with requirements, deadlines, or follow-up procedures."],
+                confidence=0.82,
             )
 
         return CategoryInterpretation(
@@ -398,20 +404,31 @@ class CategoryInterpretationService:
         )
 
     def _looks_like_instructional_memo(self, lowered: str) -> bool:
+        if self._looks_like_presentation_guide(lowered) or self._looks_like_meeting_notice(lowered):
+            return False
         signals = [
+            "memo",
+            "purpose:",
+            "scope:",
             "guidance",
             "instructions",
             "please follow",
             "review the following",
             "steps",
             "prepare",
+            "required prerequisites",
+            "approval workflow",
+            "documentation:",
+            "deadlines:",
+            "audit procedure",
+            "revocation:",
             "arrival",
             "materials",
             "follow-up",
             "workshop",
             "facilitator",
         ]
-        return sum(signal in lowered for signal in signals) >= 2
+        return sum(signal in lowered for signal in signals) >= 2 and not self._looks_like_invoice(lowered)
 
     def _bill_title(self, text: str) -> str | None:
         for line in text.splitlines()[:8]:
@@ -428,7 +445,7 @@ class CategoryInterpretationService:
             cleaned = self._clean_title_candidate(line)
             lowered = cleaned.lower()
             if lowered.startswith("vendor"):
-                vendor = cleaned.split(":", 1)[-1].strip(" |:-")
+                vendor = re.split(r"[:|,]", cleaned, maxsplit=1)[-1].strip(" |:-")
                 break
         if invoice_number and vendor:
             return f"Invoice {invoice_number} from {vendor}"
@@ -439,5 +456,5 @@ class CategoryInterpretationService:
         return "Invoice"
 
     def _invoice_number(self, text: str) -> str | None:
-        match = re.search(r"\b(?:invoice(?:\s+number)?|invoice\s*#)\s*[:|]?\s*([A-Z0-9-]{4,})", text, flags=re.IGNORECASE)
+        match = re.search(r"\b(?:invoice(?:\s+number)?|invoice\s*#)\s*[:|,]?\s*([A-Z0-9-]{4,})", text, flags=re.IGNORECASE)
         return match.group(1) if match else None

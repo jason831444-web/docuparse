@@ -274,6 +274,285 @@
         "summary_keywords": ["invoice", "vendor", "due", "total"],
         "require_action_items": true
       }
+    },
+    {
+      "id": "long_course_guide_pdf",
+      "filename": "advanced_data_stewardship_course_guide.pdf",
+      "format": "pdf",
+      "content": {
+        "title": "IDS 410: Advanced Data Stewardship Course Guide",
+        "lines": [
+          "Course Overview: IDS 410 prepares students to manage research datasets from intake through publication, with emphasis on privacy, reproducibility, version control, and stakeholder communication.",
+          "Instructor: Dr. Lena Ortiz. Office Hours: Monday 10:00 AM - 12:00 PM and Wednesday 3:00 PM - 4:00 PM by appointment.",
+          "Learning Goals: Students will classify sensitive data, write data dictionaries, design retention plans, evaluate repository requirements, and explain stewardship decisions to nontechnical partners.",
+          "Required Materials: Research Data Management Handbook, institutional repository guide, Git basics worksheet, sample consent-language packet, and weekly case packets posted in the learning portal.",
+          "Weekly Rhythm: Monday sessions introduce methods, Wednesday labs apply those methods to messy datasets, and Friday check-ins resolve blockers before submission deadlines.",
+          "Major Assignments: Data inventory memo due September 18, privacy risk analysis due October 9, repository readiness plan due November 6, final stewardship portfolio due December 11.",
+          "Grading: Labs 20%, data inventory memo 15%, privacy risk analysis 20%, repository readiness plan 20%, final portfolio 20%, participation and peer review 5%.",
+          "Policy on Late Work: Students may use one 48-hour extension token before November 15; later requests require documentation and must be sent before the deadline.",
+          "Academic Integrity: All borrowed code, metadata templates, and AI-generated drafting support must be cited in the submission notes.",
+          "Communication: Use the course forum for general questions so answers are visible to the cohort; email the instructor only for private advising or accessibility issues.",
+          "Schedule Week 1: Orientation to data stewardship and review of campus repository policies.",
+          "Schedule Week 2: Dataset intake interviews, stakeholder maps, and first lab on ambiguous source files.",
+          "Schedule Week 3: Metadata standards, controlled vocabularies, and a data dictionary workshop.",
+          "Schedule Week 4: Privacy classification, consent constraints, and risk scoring for mixed public/private records.",
+          "Schedule Week 5: File naming, version control, and reproducibility checks using a shared project repository.",
+          "Schedule Week 6: Midterm review of data inventory memos and peer feedback on missing fields.",
+          "Schedule Week 7: Repository selection criteria, embargo rules, and license choices.",
+          "Schedule Week 8: Preservation formats, checksum validation, and retention schedule planning.",
+          "Schedule Week 9: Accessibility review for tables, documentation, and public-facing README files.",
+          "Schedule Week 10: Final portfolio clinic with emphasis on linking policy decisions to evidence."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["syllabus", "course_guide"],
+        "expected_categories": ["course_guide", "syllabus"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["course", "instructor", "assignments", "grading", "schedule", "materials"],
+        "important_keywords": ["privacy", "portfolio", "repository", "deadline"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "long_policy_memo_md",
+      "filename": "lab_access_policy_memo.md",
+      "format": "md",
+      "content": {
+        "title": "Laboratory Access Policy Implementation Memo",
+        "lines": [
+          "Laboratory Access Policy Implementation Memo",
+          "",
+          "Purpose: This memo explains the updated process for granting after-hours laboratory access to research assistants, visiting students, and temporary project staff.",
+          "",
+          "Background: The prior approval process relied on email threads and inconsistent spreadsheet notes, which made it difficult to confirm training status during safety audits.",
+          "",
+          "Scope: The process applies to wet labs, secure computing rooms, shared equipment rooms, and storage spaces that require card access outside normal building hours.",
+          "",
+          "Required Prerequisites: Supervisors must verify safety training, project assignment, emergency contact information, and expiration date before submitting a request.",
+          "",
+          "Approval Workflow: Department coordinators review the request packet, facilities staff activate card permissions, and the research office performs a weekly exception review.",
+          "",
+          "Documentation: Each request must include the student name, campus ID, sponsor, room list, access window, training certificate date, and justification for after-hours access.",
+          "",
+          "Deadlines: Requests needed for Monday activation must be submitted by Thursday at 3:00 PM. Emergency requests require director approval and must be reconciled within two business days.",
+          "",
+          "Audit Procedure: Coordinators must export the active-access report on the first business day of each month and compare it with project rosters and departure notices.",
+          "",
+          "Revocation: Access must be removed within one business day when a project ends, a training certificate expires, or a supervisor reports a role change.",
+          "",
+          "Follow-up: Send questions and exception requests to research-operations@example.edu with the subject line Lab Access Exception."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["instructional_memo"],
+        "expected_categories": ["instructional_memo"],
+        "expected_broad_types": ["memo", "document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["memo", "access", "approval", "training", "deadline", "audit"],
+        "important_keywords": ["after-hours", "training", "revocation", "Thursday"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "long_utility_bill_html",
+      "filename": "ridgeview_water_statement.html",
+      "format": "html",
+      "content": {
+        "title": "Ridgeview Water Authority Statement",
+        "lines": [
+          "Account Holder: Jordan Lee",
+          "Service Address: 84 Harbor View Lane, Unit 12C",
+          "Account Number: RVA-771204-6",
+          "Billing Period: February 15, 2026 - March 16, 2026",
+          "Previous Balance: $0.00",
+          "Water Usage Charge: $46.80 for 5,200 gallons",
+          "Wastewater Service Charge: $38.25",
+          "Stormwater Fee: $7.40",
+          "Infrastructure Renewal Surcharge: $4.85",
+          "Late Fee: $0.00",
+          "Total New Charges: $97.30",
+          "Amount Due: $97.30",
+          "Due Date: April 12, 2026",
+          "Autopay Status: Not enrolled",
+          "Message: Usage increased 18 percent from the prior billing period. Check irrigation timers and indoor fixtures if the increase was unexpected.",
+          "Payment Options: Pay online, mail a check with the remittance stub, or call customer support for payment-plan assistance.",
+          "Service Notice: Hydrant flushing is scheduled in the neighborhood during the week of April 20 and may temporarily discolor water."
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["utility_bill"],
+        "expected_categories": ["utilities", "utility_bill"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["account", "billing", "usage", "amount", "due", "autopay"],
+        "important_keywords": ["97.30", "April 12", "usage", "autopay"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "detailed_resume_json",
+      "filename": "samira_chen_product_data_resume.json",
+      "format": "json",
+      "content": {
+        "json_object": {
+          "name": "Samira Chen",
+          "headline": "Product Data Analyst",
+          "contact": {
+            "email": "samira.chen@example.com",
+            "location": "Queens, NY",
+            "links": ["https://linkedin.com/in/samirachen", "https://github.com/samirachen"]
+          },
+          "summary": "Analyst focused on product instrumentation, experimentation, and operational dashboards for education technology teams.",
+          "education": [
+            "M.S. Applied Analytics, Stony Brook University, expected May 2027",
+            "B.A. Economics, Hunter College, 2023"
+          ],
+          "experience": [
+            "Product Analytics Intern, LearnLoop: built activation funnel dashboard, documented event taxonomy, and partnered with engineering to reduce duplicate events.",
+            "Data Fellow, City Services Lab: analyzed service request backlog, produced weekly executive summaries, and automated CSV quality checks."
+          ],
+          "projects": [
+            "Experiment Readiness Checklist: standardized guardrail metrics and launch criteria for A/B tests.",
+            "Course Retention Cohort Model: combined enrollment, assignment, and support-ticket data to identify at-risk sections."
+          ],
+          "skills": ["SQL", "Python", "dbt", "Looker", "Amplitude", "A/B testing", "data quality monitoring"],
+          "certifications": ["Google Data Analytics Certificate", "Responsible AI for Product Analytics workshop"],
+          "volunteer": "Mentors first-generation students on analytics portfolios and interview preparation."
+        }
+      },
+      "expectations": {
+        "expected_profiles": ["resume_profile"],
+        "expected_categories": ["resume_profile"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["education", "experience", "projects", "skills", "analytics"],
+        "important_keywords": ["SQL", "dashboard", "experimentation", "analytics"],
+        "require_action_items": false
+      }
+    },
+    {
+      "id": "noisy_repair_bill_png",
+      "filename": "noisy_bicycle_repair_bill.png",
+      "format": "png",
+      "content": {
+        "title": "BAY CYCLE SERVICE - WORK ORDER / RECEIPT",
+        "ocr_noise": true,
+        "lines": [
+          "Acct: BC-4491    Ticket: WO-7718",
+          "Customer: N. Rivera     Date: 04/09/2026",
+          "Bike: commuter hybrid - rear wheel wobble / brake rub",
+          "PARTS / LABOR",
+          "Rear wheel true and tension check        42.00",
+          "Brake pad set - all weather compound     28.50",
+          "Cable and housing kit                    19.75",
+          "Labor tune adjustment 1.5 hr             67.50",
+          "Shop supplies fee                         4.25",
+          "Subtotal                                162.00",
+          "Tax                                       8.91",
+          "Total Due                               170.91",
+          "Paid VISA ending 1182",
+          "Note: return within 10 days if brake noise continues"
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["repair_service_receipt", "receipt"],
+        "expected_categories": ["repair_service", "repair_service_receipt", "retail"],
+        "expected_broad_types": ["receipt", "document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["receipt", "repair", "labor", "parts", "total"],
+        "important_keywords": ["170.91", "brake", "labor", "wheel"],
+        "require_action_items": false
+      }
+    },
+    {
+      "id": "nested_meeting_notice_xml",
+      "filename": "advising_rollout_notice.xml",
+      "format": "xml",
+      "content": {
+        "title": "Advising Workflow Rollout Notice",
+        "lines": [
+          "Notice Type: Implementation Meeting",
+          "Purpose: Confirm department readiness for the new advising workflow before student registration opens.",
+          "Meeting Date: May 5, 2026 at 9:30 AM",
+          "Location: Administration Building Room 204 and Teams backup link",
+          "Required Attendees: undergraduate program directors, advising coordinators, registrar liaison, and department schedulers",
+          "Agenda: review intake form routing, escalation rules, appointment capacity, and unresolved transfer-credit exceptions",
+          "Preparation: Bring department feedback, list of blocked cases, and names of staff who still need system access.",
+          "Follow-up Deadline: Final exception list due May 7, 2026 by 5:00 PM",
+          "Contact: advising-implementation@example.edu"
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["meeting_notice"],
+        "expected_categories": ["meeting_notice"],
+        "expected_broad_types": ["notice", "document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["meeting", "purpose", "location", "agenda", "follow-up"],
+        "important_keywords": ["May 5", "readiness", "exception", "registration"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "multirow_invoice_csv",
+      "filename": "campus_media_services_invoice.csv",
+      "format": "csv",
+      "content": {
+        "rows": [
+          ["Invoice Number", "CMS-3107"],
+          ["Vendor", "Campus Media Services"],
+          ["Bill To", "Center for Teaching Innovation"],
+          ["Invoice Date", "2026-04-14"],
+          ["Due Date", "2026-05-14"],
+          ["Line Item", "Lecture capture setup", "Qty", "2", "Unit", "350.00", "Amount", "700.00"],
+          ["Line Item", "Captioning review hours", "Qty", "8", "Unit", "65.00", "Amount", "520.00"],
+          ["Line Item", "Streaming support for keynote", "Qty", "1", "Unit", "425.00", "Amount", "425.00"],
+          ["Subtotal", "1645.00"],
+          ["Service Fee", "49.35"],
+          ["Total Due", "1694.35"],
+          ["Payment Terms", "Net 30; include invoice number on remittance"]
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["invoice"],
+        "expected_categories": ["invoice"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["invoice", "vendor", "line", "due", "total"],
+        "important_keywords": ["CMS-3107", "1694.35", "captioning", "Net 30"],
+        "require_action_items": true
+      }
+    },
+    {
+      "id": "profile_record_docx",
+      "filename": "mentor_program_participant_profile.docx",
+      "format": "docx",
+      "content": {
+        "title": "Mentor Program Participant Profile",
+        "lines": [
+          "Name: Priya Nair",
+          "Student ID: 20264219",
+          "Program: Women in Engineering Peer Mentor Program",
+          "Major: Mechanical Engineering",
+          "Year: Sophomore",
+          "Department: College of Engineering and Applied Sciences",
+          "Advisor: Dr. Marta Silva",
+          "Goals: Build confidence in thermal systems coursework, find a summer research placement, and practice technical interviewing.",
+          "Background: Priya transferred from a community college and is balancing a part-time lab assistant role with a full course load.",
+          "Support Notes: Prefers afternoon mentor meetings, wants accountability around weekly problem sets, and asked for introductions to robotics research groups.",
+          "Risk Indicators: Missed two early advising emails and has not yet submitted the internship interest form.",
+          "Next Review Date: April 30, 2026"
+        ]
+      },
+      "expectations": {
+        "expected_profiles": ["profile_record"],
+        "expected_categories": ["profile_record"],
+        "expected_broad_types": ["document"],
+        "generic_not_allowed": true,
+        "summary_keywords": ["name", "student", "program", "major", "goals", "support"],
+        "important_keywords": ["Priya", "mentor", "internship", "April 30"],
+        "require_action_items": true
+      }
     }
   ]
 }

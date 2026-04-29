@@ -136,6 +136,11 @@ class DocumentInterpretationService:
                 }
             )
         )
+        if should_adopt_category and self._specific_profile_regression(base, refined):
+            should_adopt_category = False
+            result.diagnostics.append(
+                f"Kept specific heuristic profile {base.profile}; AI refinement proposed broader {refined.profile}."
+            )
         if should_adopt_category:
             result.category = refined.category or result.category
             result.profile = refined.profile or result.profile
@@ -218,6 +223,13 @@ class DocumentInterpretationService:
 
     def _is_generic_category(self, category: str | None) -> bool:
         return not category or category in {"other", "document", "generic_document", "notice"}
+
+    def _specific_profile_regression(self, base: CategoryInterpretation, refined: CategoryInterpretation) -> bool:
+        if refined.profile != "instructional_memo":
+            return False
+        if base.profile not in {"presentation_guide", "speaking_notes", "meeting_notice"}:
+            return False
+        return base.confidence >= 0.74
 
     def _better_summary(self, new: str, current: str | None) -> bool:
         if not current:

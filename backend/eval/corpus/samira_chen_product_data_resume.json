@@ -1,0 +1,39 @@
+{
+  "name": "Samira Chen",
+  "headline": "Product Data Analyst",
+  "contact": {
+    "email": "samira.chen@example.com",
+    "location": "Queens, NY",
+    "links": [
+      "https://linkedin.com/in/samirachen",
+      "https://github.com/samirachen"
+    ]
+  },
+  "summary": "Analyst focused on product instrumentation, experimentation, and operational dashboards for education technology teams.",
+  "education": [
+    "M.S. Applied Analytics, Stony Brook University, expected May 2027",
+    "B.A. Economics, Hunter College, 2023"
+  ],
+  "experience": [
+    "Product Analytics Intern, LearnLoop: built activation funnel dashboard, documented event taxonomy, and partnered with engineering to reduce duplicate events.",
+    "Data Fellow, City Services Lab: analyzed service request backlog, produced weekly executive summaries, and automated CSV quality checks."
+  ],
+  "projects": [
+    "Experiment Readiness Checklist: standardized guardrail metrics and launch criteria for A/B tests.",
+    "Course Retention Cohort Model: combined enrollment, assignment, and support-ticket data to identify at-risk sections."
+  ],
+  "skills": [
+    "SQL",
+    "Python",
+    "dbt",
+    "Looker",
+    "Amplitude",
+    "A/B testing",
+    "data quality monitoring"
+  ],
+  "certifications": [
+    "Google Data Analytics Certificate",
+    "Responsible AI for Product Analytics workshop"
+  ],
+  "volunteer": "Mentors first-generation students on analytics portfolios and interview preparation."
+}
