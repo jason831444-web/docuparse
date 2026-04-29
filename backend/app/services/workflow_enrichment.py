@@ -414,6 +414,10 @@ class DocumentWorkflowEnrichmentService:
                 return "Use it to prepare for the meeting, note the location or timing, and complete any follow-up."
             if profile in {"invoice", "utility_bill"}:
                 return "Use it to verify charges, due dates, account details, and payment or filing needs."
+            if profile == "resume_profile":
+                return "Use it to review qualifications, experience, and any follow-up details."
+            if profile == "profile_record":
+                return "Use it to verify identity, affiliation, support notes, and any follow-up details in the record."
             return "Use it to confirm timing, required follow-up, and the details most relevant to the reader."
         if document.document_type == DocumentType.receipt:
             return "It mainly matters as a transaction record, especially for tracking, reimbursement, or understanding the purchase or service context."
@@ -437,6 +441,9 @@ class DocumentWorkflowEnrichmentService:
         cleaned = re.sub(r"^(this document|this file|this course|this receipt)\s+(is|contains|includes)\s+", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"^(important details?|key details?)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = cleaned.strip()
+        profile_record_match = re.fullmatch(r"([A-Z][A-Za-z .'-]{1,80})\s+is\s+(?:a\s+)?(?:profile record|profile)", cleaned)
+        if profile_record_match:
+            cleaned = f"Name: {profile_record_match.group(1).strip()}"
         return self._truncate_text(cleaned, 220) if cleaned else None
 
     def _is_useful_importance_point(self, point: str) -> bool:
@@ -535,6 +542,14 @@ class DocumentWorkflowEnrichmentService:
             return "Review course communication expectations."
         if "contact:" in lowered or lowered.startswith("contact "):
             return "Confirm the right contact channel for questions or exceptions."
+        if key == "invoice" and any(term in lowered for term in ["deadline", "due", "submit", "pay", "payment"]):
+            return "Review the invoice due date and payment timing."
+        if key == "utility_bill" and any(term in lowered for term in ["deadline", "due", "pay", "payment", "amount due", "balance due"]):
+            return "Review the bill due date and payment timing."
+        if key == "profile_record" and "support notes" in lowered:
+            return "Review support notes and follow-up needs."
+        if key == "profile_record" and any(term in lowered for term in ["risk indicator", "risk indicators", "support need"]):
+            return "Review risk indicators and support needs."
         if len(cleaned.split()) > 12 or self._looks_like_body_fragment(cleaned):
             if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
                 return "Review the document for deadlines or required submission steps."

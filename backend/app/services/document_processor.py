@@ -284,14 +284,15 @@ class DocumentProcessor:
         cleaned = list(dict.fromkeys(tag for tag in tags if tag))
         if interpretation.profile and interpretation.profile not in {"generic_document", "other"}:
             conflicting = {
-                "syllabus": {"notice", "generic_document", "other"},
-                "course_guide": {"notice", "generic_document", "other"},
+                "syllabus": {"memo", "notice", "office", "generic_document", "other"},
+                "course_guide": {"memo", "notice", "office", "generic_document", "other"},
                 "presentation_guide": {"notice", "generic_document", "other"},
                 "speaking_notes": {"notice", "generic_document", "other"},
                 "resume_profile": {"notice", "generic_document", "other"},
-                "profile_record": {"notice", "generic_document", "other"},
-                "repair_service_receipt": {"utilities", "notice", "generic_document", "other"},
-                "utility_bill": {"repair_service", "generic_document", "other"},
+                "profile_record": {"memo", "notice", "generic_document", "other"},
+                "repair_service_receipt": {"utilities", "notice", "memo", "generic_document", "other"},
+                "utility_bill": {"repair_service", "retail", "notice", "memo", "generic_document", "other"},
+                "invoice": {"retail", "notice", "memo", "generic_document", "other"},
                 "meeting_notice": {"generic_document", "other"},
                 "instructional_memo": {"notice", "generic_document", "other"},
             }
