@@ -300,14 +300,20 @@ class DocumentWorkflowEnrichmentService:
             self._list_preview(resume_meta.get("projects"), label="projects"),
             self._list_preview(resume_meta.get("technical_skills"), label="technical skills"),
             self._list_preview(profile_meta.get("identity_facts"), label="identity facts"),
-            self._string_value(utilities_meta.get("provider")),
-            self._money_string(utilities_meta.get("amount_due"), document.currency),
-            self._string_value(utilities_meta.get("due_date")),
-            self._string_value(utilities_meta.get("billing_period")),
-            self._string_value(meeting_meta.get("purpose")),
-            self._string_value(meeting_meta.get("meeting_date")),
-            self._string_value(meeting_meta.get("location")),
         ])
+        if profile == "utility_bill":
+            points.extend([
+                self._label_value("provider", utilities_meta.get("provider")),
+                self._label_value("amount due", self._money_string(utilities_meta.get("amount_due"), document.currency)),
+                self._label_value("due date", utilities_meta.get("due_date")),
+                self._label_value("billing period", utilities_meta.get("billing_period")),
+            ])
+        if profile == "meeting_notice":
+            points.extend([
+                self._label_value("purpose", meeting_meta.get("purpose")),
+                self._label_value("meeting date", meeting_meta.get("meeting_date")),
+                self._label_value("location", meeting_meta.get("location")),
+            ])
         if interpretation and interpretation.summary_hint and not self._summary_is_generic(interpretation.summary_hint) and not self._summary_hint_is_template(interpretation.summary_hint):
             points.append(interpretation.summary_hint)
         return [point for point in points if point]
@@ -414,6 +420,10 @@ class DocumentWorkflowEnrichmentService:
                 return "Use it to prepare for the meeting, note the location or timing, and complete any follow-up."
             if profile in {"invoice", "utility_bill"}:
                 return "Use it to verify charges, due dates, account details, and payment or filing needs."
+            if profile in {"receipt", "repair_service_receipt"} or document.document_type == DocumentType.receipt:
+                return "Use it to verify the merchant, date, total, and any itemized charges before filing."
+            if profile in {"presentation_guide", "speaking_notes"}:
+                return "Use it to prepare the presentation flow, speaking points, timing, and materials."
             if profile == "resume_profile":
                 return "Use it to review qualifications, experience, and any follow-up details."
             if profile == "profile_record":
@@ -439,7 +449,15 @@ class DocumentWorkflowEnrichmentService:
             return None
         cleaned = re.sub(r"\s+", " ", cleaned).strip(" ;,.-")
         cleaned = re.sub(r"^(this document|this file|this course|this receipt)\s+(is|contains|includes)\s+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^(?:line|title|field)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"^(important details?|key details?)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"^([A-Za-z][A-Za-z ]{2,40})\s*:\s*(?:line|title|field)\s*:\s*",
+            r"\1: ",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"^([A-Za-z][A-Za-z ]{2,40})\s*:\s*\1\s*:\s*", r"\1: ", cleaned, flags=re.IGNORECASE)
         cleaned = cleaned.strip()
         profile_record_match = re.fullmatch(r"([A-Z][A-Za-z .'-]{1,80})\s+is\s+(?:a\s+)?(?:profile record|profile)", cleaned)
         if profile_record_match:
@@ -457,6 +475,8 @@ class DocumentWorkflowEnrichmentService:
         if lowered.startswith("important date detected"):
             return False
         if lowered.startswith("review the document for deadlines"):
+            return False
+        if lowered.startswith(("review ", "pay or schedule ", "file this receipt ", "confirm ", "handle this notice ")):
             return False
         if re.match(r"^(it|this|these)\b", lowered) and len(point.split()) > 12:
             return False
@@ -546,12 +566,20 @@ class DocumentWorkflowEnrichmentService:
             return "Review the invoice due date and payment timing."
         if key == "utility_bill" and any(term in lowered for term in ["deadline", "due", "pay", "payment", "amount due", "balance due"]):
             return "Review the bill due date and payment timing."
+        if key == "utility_bill" and "follow-up" in lowered:
+            return "Review the bill due date and payment timing."
+        if key == "instructional_memo" and lowered.startswith("handle this notice"):
+            return re.sub(r"^handle this notice", "Handle this memo", cleaned, flags=re.IGNORECASE)
+        if key == "instructional_memo" and "follow-up" in lowered:
+            return "Review memo follow-up steps and required materials."
         if key == "profile_record" and "support notes" in lowered:
             return "Review support notes and follow-up needs."
         if key == "profile_record" and any(term in lowered for term in ["risk indicator", "risk indicators", "support need"]):
             return "Review risk indicators and support needs."
         if len(cleaned.split()) > 12 or self._looks_like_body_fragment(cleaned):
             if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
+                if key == "instructional_memo":
+                    return "Review memo deadlines and required submission steps."
                 return "Review the document for deadlines or required submission steps."
             if any(term in lowered for term in ["pay", "amount due", "balance due"]):
                 return "Review the payment details and timing before taking action."
@@ -565,6 +593,8 @@ class DocumentWorkflowEnrichmentService:
         if any(term in lowered for term in ["policy", "attendance", "missed work", "late work", "grading", "materials", "exam", "quiz"]):
             return self._policy_review_prompt(lowered, mode, profile)
         if any(term in lowered for term in ["deadline", "due", "submit", "register", "rsvp"]):
+            if key == "instructional_memo":
+                return "Review memo deadlines and required submission steps."
             return "Review deadlines and required submission details."
         cleaned = cleaned[0].upper() + cleaned[1:]
         if cleaned[-1] not in ".!?":
@@ -653,6 +683,14 @@ class DocumentWorkflowEnrichmentService:
         if isinstance(value, (int, float, Decimal)):
             return self._clean_text_fragment(str(value))
         return None
+
+    def _label_value(self, label: str, value: Any) -> str | None:
+        cleaned = self._string_value(value)
+        if not cleaned:
+            return None
+        if cleaned.lower().startswith(f"{label.lower()}:"):
+            return cleaned
+        return f"{label}: {cleaned}"
 
     def _string_list(self, value: Any) -> list[str]:
         if not isinstance(value, list):
@@ -1263,6 +1301,10 @@ class DocumentWorkflowEnrichmentService:
     def _first_meaningful_line(self, text: str) -> str | None:
         for line in text.splitlines():
             cleaned = re.sub(r"\s+", " ", line).strip()
+            if re.fullmatch(r"sheet\s*:\s*.+", cleaned, flags=re.IGNORECASE):
+                continue
+            if re.fullmatch(r"invoice(?:\s+number)?\s*[:|,].+", cleaned, flags=re.IGNORECASE):
+                continue
             if len(cleaned) >= 3:
                 return cleaned[:120]
         return None
@@ -1698,8 +1740,8 @@ class DocumentWorkflowEnrichmentService:
         for line in self._unique_content_lines(text):
             lowered = line.lower().replace("_", " ")
             for label in labels:
-                if lowered.startswith(f"{label}:") or lowered.startswith(f"{label} -"):
-                    return line.split(":", 1)[-1].strip() if ":" in line else re.sub(rf"^{re.escape(label)}\s*-\s*", "", line, flags=re.IGNORECASE)
+                if re.match(rf"^{re.escape(label)}\s*[:|,-]\s*", lowered, flags=re.IGNORECASE):
+                    return re.sub(rf"^{re.escape(label)}\s*[:|,-]\s*", "", line, flags=re.IGNORECASE).strip()
         return None
 
     def _matching_lines(self, text: str, keywords: list[str]) -> list[str]:

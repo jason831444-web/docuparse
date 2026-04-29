@@ -102,6 +102,8 @@ class DocumentProcessor:
             document.title = self._apply_title_hint(document.title, interpretation)
             document.category = self._apply_category_hint(document.category, interpretation)
             document.document_type = self._refined_document_type(document.document_type, interpretation)
+            document.title = self._clean_final_title(document.title, interpretation)
+            document.merchant_name = self._clean_final_merchant(document.merchant_name)
             if interpretation.summary_hint:
                 document.summary = interpretation.summary_hint
             document.tags = self._merge_tags(document.tags, interpretation, document.document_type)
@@ -244,7 +246,39 @@ class DocumentProcessor:
             return interpretation.title_hint
         if interpretation.profile in {"profile_record", "resume_profile"} and current_title != interpretation.title_hint:
             return interpretation.title_hint
+        if interpretation.profile == "invoice" and current_title and "receipt" in current_title.lower():
+            return interpretation.title_hint or current_title
         return current_title
+
+    def _clean_final_title(self, title: str | None, interpretation: CategoryInterpretation) -> str | None:
+        cleaned = self._clean_text_fragment(title)
+        if not cleaned:
+            return interpretation.title_hint or title
+        if interpretation.profile == "invoice" and "receipt" in cleaned.lower():
+            return self._clean_text_fragment(interpretation.title_hint) or "Invoice"
+        if interpretation.profile in {"receipt", "repair_service_receipt"}:
+            cleaned = re.sub(r"\s+receipt\s+receipt$", " receipt", cleaned, flags=re.IGNORECASE)
+        return cleaned
+
+    def _clean_final_merchant(self, merchant: str | None) -> str | None:
+        cleaned = self._clean_text_fragment(merchant)
+        if not cleaned:
+            return None
+        if re.match(r"^(?:acct|account|ticket|customer|date|bike|invoice\s+(?:number|#)|vendor|bill to)\b", cleaned, flags=re.IGNORECASE):
+            return None
+        return cleaned
+
+    def _clean_text_fragment(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = re.sub(r"\s+", " ", str(value)).strip()
+        cleaned = re.sub(r"\s*[-–—]+\s*[.,:;]*\s*$", "", cleaned)
+        cleaned = re.sub(r"(?:\s+[.,:;|%]+)+$", "", cleaned)
+        cleaned = re.sub(r"\s+[-–—]\s+[.,:;]+$", "", cleaned)
+        cleaned = cleaned.strip(" \t\r\n-–—|")
+        if not cleaned or re.fullmatch(r"[.,:;/%\\-]+", cleaned):
+            return None
+        return cleaned[:160]
 
     def _apply_category_hint(self, current_category: str | None, interpretation: CategoryInterpretation) -> str | None:
         specific_profiles = {
@@ -286,15 +320,15 @@ class DocumentProcessor:
             conflicting = {
                 "syllabus": {"memo", "notice", "office", "generic_document", "other"},
                 "course_guide": {"memo", "notice", "office", "generic_document", "other"},
-                "presentation_guide": {"notice", "generic_document", "other"},
-                "speaking_notes": {"notice", "generic_document", "other"},
-                "resume_profile": {"notice", "generic_document", "other"},
-                "profile_record": {"memo", "notice", "generic_document", "other"},
+                "presentation_guide": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
+                "speaking_notes": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
+                "resume_profile": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "profile_record", "generic_document", "other"},
+                "profile_record": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "generic_document", "other"},
                 "repair_service_receipt": {"utilities", "notice", "memo", "generic_document", "other"},
-                "utility_bill": {"repair_service", "retail", "notice", "memo", "generic_document", "other"},
-                "invoice": {"retail", "notice", "memo", "generic_document", "other"},
-                "meeting_notice": {"generic_document", "other"},
-                "instructional_memo": {"notice", "generic_document", "other"},
+                "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+                "invoice": {"retail", "food_drink", "utilities", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+                "meeting_notice": {"receipt", "retail", "food_drink", "utilities", "generic_document", "other"},
+                "instructional_memo": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
             }
             blocked = conflicting.get(interpretation.profile, {"generic_document", "other"})
             cleaned = [tag for tag in cleaned if tag not in blocked]
