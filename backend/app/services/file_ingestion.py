@@ -74,8 +74,8 @@ class FileIngestionService:
     def _image(self, path: Path, detected: DetectedFileType) -> NormalizedDocument:
         text, confidence = self.ocr.extract_text(path)
         warnings = []
-        if confidence < 0.55:
-            warnings.append("Image OCR confidence is low; AI vision extraction may be needed.")
+        if confidence < 0.68:
+            warnings.append("Image OCR confidence is low or borderline; vision extraction may be needed.")
         return NormalizedDocument(
             source_file_type=detected.extension,
             mime_type=detected.mime_type,

@@ -34,7 +34,7 @@ export default function DashboardPage() {
     <main className="shell py-8">
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
-          <div className="rounded-2xl border bg-white p-8">
+          <div className="rounded-2xl border bg-white/95 p-8 shadow-sm shadow-slate-200/70">
             <p className="text-sm font-medium uppercase tracking-normal text-muted-foreground">Launch-ready workflow workspace</p>
             <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-normal">
               Upload documents, let AI organize them, then review, confirm, and find them later.
@@ -72,7 +72,7 @@ export default function DashboardPage() {
             <CardTitle>Recent uploads</CardTitle>
             <Button asChild variant="ghost" size="sm"><Link href="/documents">View all</Link></Button>
           </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
+          <CardContent className="grid min-w-0 gap-4 lg:grid-cols-2">
             {(stats?.recent ?? []).slice(0, 4).map((document) => <DocumentCard key={document.id} document={document} />)}
           </CardContent>
         </Card>
@@ -83,13 +83,13 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {(stats?.recent_review ?? []).slice(0, 4).map((document) => (
-              <Link key={document.id} href={`/documents/${document.id}`} className="block rounded-lg border bg-white p-4">
+              <Link key={document.id} href={`/documents/${document.id}`} className="block min-w-0 overflow-hidden rounded-lg border bg-white p-4 shadow-sm shadow-slate-200/50 transition hover:border-primary/30 hover:shadow-md">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{document.title || document.original_filename}</p>
-                    <p className="mt-1 truncate text-sm text-muted-foreground">{documentSummaryShort(document, 120)}</p>
+                    <p className="line-clamp-2 break-words font-medium leading-snug">{document.title || document.original_filename}</p>
+                    <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{documentSummaryShort(document, 140)}</p>
                   </div>
-                  <TriangleAlert className="size-5 text-amber-600" />
+                  <TriangleAlert className="size-5 shrink-0 text-amber-600" />
                 </div>
               </Link>
             ))}
@@ -130,12 +130,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {(activity?.recent_edits ?? []).slice(0, 5).map((document) => (
-              <Link key={document.id} href={`/documents/${document.id}`} className="flex items-center justify-between rounded-lg border bg-white p-4">
+              <Link key={document.id} href={`/documents/${document.id}`} className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-lg border bg-white p-4 shadow-sm shadow-slate-200/50 transition hover:border-primary/30 hover:shadow-md">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{document.title || document.original_filename}</p>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">{documentSummaryShort(document, 120)}</p>
+                  <p className="line-clamp-2 break-words font-medium leading-snug">{document.title || document.original_filename}</p>
+                  <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{documentSummaryShort(document, 140)}</p>
                 </div>
-                <CheckCircle2 className="size-5 text-primary" />
+                <CheckCircle2 className="size-5 shrink-0 text-primary" />
               </Link>
             ))}
           </CardContent>
@@ -147,9 +147,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {(activity?.favorites ?? []).slice(0, 5).map((document) => (
-              <Link key={document.id} href={`/documents/${document.id}`} className="block rounded-lg border bg-white p-4">
-                <p className="truncate font-medium">{document.title || document.original_filename}</p>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{documentSummaryShort(document, 120)}</p>
+              <Link key={document.id} href={`/documents/${document.id}`} className="block min-w-0 overflow-hidden rounded-lg border bg-white p-4 shadow-sm shadow-slate-200/50 transition hover:border-primary/30 hover:shadow-md">
+                <p className="line-clamp-2 break-words font-medium leading-snug">{document.title || document.original_filename}</p>
+                <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{documentSummaryShort(document, 140)}</p>
               </Link>
             ))}
           </CardContent>

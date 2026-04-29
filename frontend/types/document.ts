@@ -1,4 +1,4 @@
-export type DocumentType = "receipt" | "notice" | "document" | "memo" | "other";
+export type DocumentType = "receipt" | "notice" | "document" | "memo" | "presentation" | "other";
 export type ProcessingStatus = "uploaded" | "queued" | "processing" | "ready" | "needs_review" | "confirmed" | "completed" | "failed";
 
 export interface FolderSummary {
@@ -8,6 +8,10 @@ export interface FolderSummary {
   needs_review: number;
   confirmed: number;
   processing: number;
+  parent: string | null;
+  depth: number;
+  category: string | null;
+  custom: boolean;
 }
 
 export interface DocumentRecord {

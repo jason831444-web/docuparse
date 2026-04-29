@@ -43,7 +43,7 @@ class DocumentWorkflowEnrichmentService:
             result = self._syllabus(document, text, mode)
         elif profile == "resume_profile":
             result = self._resume_profile(document, text, mode)
-        elif profile in {"presentation_guide", "speaking_notes"}:
+        elif profile in {"presentation_guide", "speaking_notes"} or document.document_type == DocumentType.presentation:
             result = self._presentation_guide(document, text, mode)
         elif profile == "invoice":
             result = self._invoice(document, text, mode)
@@ -157,10 +157,34 @@ class DocumentWorkflowEnrichmentService:
             highlight_sentence = self._natural_highlight_sentence([interpretation.summary_hint] + top_points[:3], mode, profile) or highlight_sentence
         label = self._category_display_name(profile if profile != "standard" else mode or document.document_type.value)
         return self._join_summary_sentences(
-            f"This is {self._article(label)} {label}{self._title_phrase(document.title)}.",
+            self._summary_opening(document, profile, mode, label),
             highlight_sentence or summary_short,
             purpose_sentence,
         )
+
+    def _summary_opening(self, document: Document, profile: str, mode: str, label: str) -> str:
+        title = self._clean_text_fragment(document.title)
+        key = profile if profile != "standard" else mode
+        if key in {"receipt", "repair_service_receipt"}:
+            merchant = self._merchant_display(document) or title or "This receipt"
+            return f"{merchant} records a receipt transaction."
+        if key == "invoice":
+            return f"{title or 'This invoice'} summarizes billing and payment details."
+        if key == "utility_bill":
+            return f"{title or 'This utility bill'} summarizes service charges and payment timing."
+        if key in {"meeting_notice"}:
+            return f"{title or 'This notice'} sets out meeting timing, location, and preparation details."
+        if key == "instructional_memo":
+            return f"{title or 'This memo'} lays out process guidance and follow-up expectations."
+        if key in {"syllabus", "course_guide"}:
+            return f"{title or 'This course guide'} outlines course expectations and key academic details."
+        if key in {"presentation_guide", "speaking_notes"}:
+            return f"{title or 'This presentation guide'} organizes audience, slide flow, and preparation guidance."
+        if key == "resume_profile":
+            return f"{title or 'This resume profile'} highlights background, skills, and experience."
+        if key == "profile_record":
+            return f"{title or 'This profile record'} captures identity and affiliation details."
+        return f"This {label}{self._title_phrase(document.title)}."
 
     def _summary_points(
         self,
@@ -539,6 +563,11 @@ class DocumentWorkflowEnrichmentService:
     def _finalize_action_items(self, items: list[str], text: str, mode: str, profile: str) -> list[str]:
         normalized = [self._normalize_action_item(item, mode, profile) for item in items]
         normalized = [item for item in normalized if item]
+        key = profile if profile != "standard" else mode
+        if key in {"presentation_guide", "speaking_notes"}:
+            normalized = [item for item in normalized if self._is_presentation_action(item)]
+            if len(normalized) > 1:
+                normalized = [item for item in normalized if item != "Review presentation preparation guidance."]
         if not normalized:
             fallback = self._action_fallback(mode, profile)
             return [fallback] if fallback else []
@@ -553,6 +582,10 @@ class DocumentWorkflowEnrichmentService:
         cleaned = cleaned.strip()
         lowered = cleaned.lower()
         key = profile if profile != "standard" else mode
+        if key in {"presentation_guide", "speaking_notes"} and re.fullmatch(r"slide\s+\d+\s+(script|notes?)\.?", lowered):
+            return None
+        if key in {"presentation_guide", "speaking_notes"} and any(term in lowered for term in ["grading", "exam", "quiz", "course policy"]):
+            return "Review presentation preparation guidance."
         receipt_like = {"receipt", "repair_service_receipt", "utility_bill", "invoice"}
         if "receipt" in lowered and key not in receipt_like:
             return self._action_fallback(mode, profile)
@@ -778,6 +811,8 @@ class DocumentWorkflowEnrichmentService:
             return "notice"
         if document.document_type == DocumentType.memo:
             return "memo"
+        if document.document_type == DocumentType.presentation:
+            return "presentation"
         if document.document_type == DocumentType.document:
             return "document"
         return "other"
@@ -1079,10 +1114,11 @@ class DocumentWorkflowEnrichmentService:
         slide_guidance = self._matching_lines(text, ["slide", "opening", "closing", "transition"])
         speaking_notes = self._matching_lines(text, ["speaking note", "speaker note", "talk track", "say", "emphasize"])
         rehearsal = self._matching_lines(text, ["rehearse", "practice", "timing", "prepare"])
+        actions = self._presentation_actions(audience, slide_guidance, speaking_notes, rehearsal)
         summary = self._sentence([purpose or document.title, audience, "presentation guide"])
         return WorkflowEnrichment(
             workflow_summary=summary or self._direct_text_summary(text, document.title, profile="presentation_guide"),
-            action_items=self._dedupe(rehearsal[:3] + slide_guidance[:2]) or ["Review slide flow and rehearse delivery."],
+            action_items=actions,
             warnings=[],
             key_dates=self._key_dates(document, text),
             urgency_level="low",
@@ -1097,6 +1133,46 @@ class DocumentWorkflowEnrichmentService:
                     "preparation_actions": rehearsal[:5],
                 }
             },
+        )
+
+    def _presentation_actions(
+        self,
+        audience: str | None,
+        slide_guidance: list[str],
+        speaking_notes: list[str],
+        rehearsal: list[str],
+    ) -> list[str]:
+        actions: list[str] = []
+        if slide_guidance:
+            actions.append("Review the slide sequence and tighten the transitions.")
+        if speaking_notes:
+            actions.append("Rehearse the speaking notes against the slide flow.")
+        if rehearsal:
+            actions.append("Practice timing and delivery before presenting.")
+        if audience:
+            actions.append("Tune examples and emphasis for the intended audience.")
+        if not actions:
+            actions.append("Review slide flow, speaker notes, and delivery timing before presenting.")
+        return self._dedupe(actions)
+
+    def _is_presentation_action(self, item: str) -> bool:
+        lowered = item.lower()
+        return any(
+            term in lowered
+            for term in [
+                "presentation",
+                "slide",
+                "speaking",
+                "speaker",
+                "rehearse",
+                "practice",
+                "delivery",
+                "timing",
+                "audience",
+                "transition",
+                "examples",
+                "emphasis",
+            ]
         )
 
     def _resume_profile(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:

@@ -127,7 +127,9 @@ class LocalDocumentAIService(DocumentAIService):
         if total is None and document_type == DocumentType.receipt:
             total = parsed.extracted_amount or self._largest_amount(text)
 
-        category = self._infer_category(text, document_type) or self._normalize_category(parsed.category)
+        parsed_category = self._normalize_category(parsed.category)
+        inferred_category = self._infer_category(text, document_type)
+        category = self._preferred_category(parsed_category, inferred_category, document_type)
         title = self._title(lines, document_type, parsed, filename)
         confidence = self._confidence(type_confidence, image_quality, raw_text, total, document_type)
         notes = quality_notes + self._field_notes(
@@ -207,10 +209,14 @@ class LocalDocumentAIService(DocumentAIService):
 
     def _classify(self, text: str, filename: str, fallback: DocumentType) -> tuple[DocumentType, Decimal]:
         haystack = f"{filename}\n{text}".lower()
+        invoice_score = self._score(haystack, ["invoice", "invoice number", "invoice #", "vendor", "bill to", "amount due", "total due"])
+        if invoice_score >= 4:
+            return DocumentType.document, Decimal("0.84")
         scores = {
             DocumentType.receipt: self._score(haystack, ["receipt", "subtotal", "tax", "total", "change", "visa", "mastercard", "cashier"]),
             DocumentType.notice: self._score(haystack, ["notice", "announcement", "effective date", "deadline", "meeting", "reminder"]),
             DocumentType.memo: self._score(haystack, ["memo", "note", "minutes", "action item", "todo"]),
+            DocumentType.presentation: self._score(haystack, ["presentation", "slide", "speaker notes", "speaking notes", "talk track", "rehearse", "script"]),
             DocumentType.document: self._score(haystack, ["invoice", "statement", "agreement", "policy", "form", "reference"]),
             DocumentType.other: 1,
         }
@@ -284,6 +290,26 @@ class LocalDocumentAIService(DocumentAIService):
             "health": "health",
         }.get(category, category)
 
+    def _preferred_category(
+        self,
+        parsed_category: str | None,
+        inferred_category: str | None,
+        document_type: DocumentType,
+    ) -> str | None:
+        specific_structured = {
+            "invoice",
+            "profile_record",
+            "course_guide",
+            "presentation_guide",
+            "repair_service",
+            "utilities",
+        }
+        if parsed_category in specific_structured:
+            return parsed_category
+        if document_type == DocumentType.receipt and parsed_category and parsed_category not in {"other", "notice"}:
+            return parsed_category
+        return inferred_category or parsed_category
+
     def _title(self, lines: list[str], document_type: DocumentType, parsed: ParsedDocument, filename: str) -> str:
         if document_type == DocumentType.receipt:
             merchant = self._merchant(lines, parsed)
@@ -296,13 +322,24 @@ class LocalDocumentAIService(DocumentAIService):
         return filename.rsplit(".", 1)[0]
 
     def _merchant(self, lines: list[str], parsed: ParsedDocument) -> str | None:
-        if parsed.merchant_name:
-            return parsed.merchant_name
+        parsed_merchant = self._clean_merchant_candidate(parsed.merchant_name or "")
+        if parsed_merchant:
+            return parsed_merchant
         for line in lines[:7]:
-            cleaned = re.sub(r"[^A-Za-z0-9 &'.,-]", "", line).strip(" ,-")
+            cleaned = self._clean_merchant_candidate(line)
             if len(cleaned) >= 3 and not re.search(r"\b(receipt|invoice|date|cashier|total|subtotal|tax)\b", cleaned, re.IGNORECASE):
                 return cleaned[:120]
         return None
+
+    def _clean_merchant_candidate(self, value: str) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9 &'.,:/|-]", " ", value or "")
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" .,:;-/|")
+        cleaned = re.sub(r"\s*[-/|]\s*(?:work\s+order|service\s+receipt|receipt|invoice|statement)\b.*$", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\b(?:work\s+order|service\s+receipt|receipt|invoice|statement)\b.*$", "", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.strip(" .,:;-/|")
+        if re.match(r"^(?:acct|account|ticket|customer|date|bike|invoice\s+(?:number|#)|vendor|bill to)\b", cleaned, flags=re.IGNORECASE):
+            return ""
+        return cleaned
 
     def _summary(self, lines: list[str], document_type: DocumentType) -> str | None:
         if not lines:
@@ -398,7 +435,7 @@ class OpenAIVisionDocumentAIService(DocumentAIService):
             "merchant_name, extracted_date as YYYY-MM-DD or null, extracted_amount, subtotal, tax, "
             "currency, category, tags, summary, cleaned_raw_text, confidence_score between 0 and 1, "
             "review_required, and extraction_notes. Supported document_type values are receipt, "
-            "notice, document, memo, other. Prefer categories like food_drink, transport, education, "
+            "notice, document, memo, presentation, other. Prefer categories like food_drink, transport, education, "
             "utilities, retail, groceries, health, office, notice, other. OCR text is supplied only "
             f"as auxiliary context. Filename: {filename}. OCR text:\n{raw_text[:6000]}"
         )
@@ -860,7 +897,7 @@ class Qwen25VLDocumentAIService(DocumentAIService):
             "Refine this document extraction. Return only JSON with keys: document_type, title, "
             "merchant_name, extracted_date, extracted_amount, subtotal, tax, currency, category, "
             "tags, summary, cleaned_raw_text, confidence_score, review_required, extraction_notes. "
-            "Use document_type receipt, notice, document, memo, or other. Fill missing fields only "
+            "Use document_type receipt, notice, document, memo, presentation, or other. Fill missing fields only "
             "when visible or strongly supported. "
             f"Filename: {filename}. Prior parser type: {parsed.document_type.value}. OCR text:\n{raw_text[:6000]}"
         )
@@ -962,7 +999,7 @@ class HybridOpenSourceDocumentAIService(DocumentAIService):
                 reasons.append("Receipt date is missing.")
             if not result.merchant_name:
                 reasons.append("Receipt merchant is missing.")
-        elif result.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo}:
+        elif result.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo, DocumentType.presentation}:
             if not result.title:
                 reasons.append("Document title is missing.")
             if not result.summary:

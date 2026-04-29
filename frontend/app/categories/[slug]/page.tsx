@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
-import { DocumentRow } from "@/components/document-row";
+import { DocumentList } from "@/components/document-list";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { titleCaseLabel } from "@/lib/utils";
@@ -14,13 +14,17 @@ export default function CategoryFolderPage() {
   const [data, setData] = useState<DocumentListResponse | null>(null);
   const category = useMemo(() => decodeURIComponent(params.slug), [params.slug]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     const query = new URLSearchParams();
     query.set("category", category);
     query.set("sort_by", "updated_at");
     query.set("order", "desc");
     api.list(query).then(setData).catch(() => setData(null));
   }, [category]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <main className="shell py-8">
@@ -29,9 +33,7 @@ export default function CategoryFolderPage() {
         <p className="mt-2 text-muted-foreground">Documents automatically organized into this AI category folder.</p>
       </div>
       {data?.items.length ? (
-        <div className="space-y-3">
-          {data.items.map((document) => <DocumentRow key={document.id} document={document} />)}
-        </div>
+        <DocumentList documents={data.items} onChanged={load} returnTo={`/categories/${encodeURIComponent(category)}`} />
       ) : (
         <Card><CardContent className="p-10 text-center text-muted-foreground">No documents in this category yet.</CardContent></Card>
       )}

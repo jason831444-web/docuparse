@@ -71,8 +71,13 @@ export function UploadDropzone() {
     setUploading(true);
     try {
       const document = await api.upload(file);
-      toast.success("Document processed");
-      router.push(`/documents/${document.id}`);
+      toast.success("Document uploaded", {
+        description: "Open it when you are ready to review the result.",
+        action: {
+          label: "Open",
+          onClick: () => router.push(`/documents/${document.id}`),
+        },
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {

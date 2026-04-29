@@ -31,10 +31,14 @@ const LABEL_ALIASES: Record<string, string> = {
   utility_bill: "Utility Bill",
   meeting_notice: "Meeting Notice",
   instructional_memo: "Instructional Memo",
+  presentation: "Presentation",
+  repair_service: "Repair Service",
+  retail: "Retail",
 };
 
-export function titleCaseLabel(value?: string | null) {
+export function titleCaseLabel(value?: string | null): string {
   if (!value) return "Uncategorized";
+  if (value.includes(">")) return value.split(">").map((part) => titleCaseLabel(part)).join(" > ");
   const alias = LABEL_ALIASES[value];
   if (alias) return alias;
   return value

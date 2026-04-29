@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import {
   AlertTriangle,
@@ -30,9 +30,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { api } from "@/lib/api";
 import { documentSummaryDetailed, formatDateTime, primaryCategoryLabel, titleCaseLabel } from "@/lib/utils";
-import type { DocumentRecord, DocumentType, DocumentUpdate } from "@/types/document";
+import type { DocumentRecord, DocumentType, DocumentUpdate, FolderSummary } from "@/types/document";
 
-const documentTypes: DocumentType[] = ["receipt", "notice", "document", "memo", "other"];
+const documentTypes: DocumentType[] = ["receipt", "notice", "document", "memo", "presentation", "other"];
 const detailTabs = ["original", "extracted", "ai"] as const;
 type DetailTab = (typeof detailTabs)[number];
 
@@ -81,10 +81,12 @@ function InfoGrid({ items }: { items: Array<[string, string | null | undefined]>
 export default function DocumentDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [document, setDocument] = useState<DocumentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>("original");
+  const [categories, setCategories] = useState<FolderSummary[]>([]);
   const form = useForm<DocumentUpdate & { tags_text: string }>();
 
   const syncDocument = useCallback((item: DocumentRecord) => {
@@ -98,6 +100,7 @@ export default function DocumentDetailPage() {
       .then(syncDocument)
       .catch((error) => toast.error(error instanceof Error ? error.message : "Could not load document"))
       .finally(() => setLoading(false));
+    api.categories().then(setCategories).catch(() => setCategories([]));
   }, [params.id, syncDocument]);
 
   async function onSubmit(values: DocumentUpdate & { tags_text: string }) {
@@ -185,7 +188,7 @@ export default function DocumentDetailPage() {
     try {
       await api.remove(params.id);
       toast.success("Document deleted");
-      router.push("/documents");
+      router.push(searchParams.get("from") || "/documents");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Delete failed");
     }
@@ -502,7 +505,14 @@ export default function DocumentDetailPage() {
               </div>
               <label className="grid gap-2 text-sm font-medium">
                 Category folder
-                <Input placeholder="presentation_guide, receipt, resume_profile" {...form.register("category")} />
+                <Input placeholder="presentation_guide, retail, repair_service" list="category-options" {...form.register("category")} />
+                <datalist id="category-options">
+                  {categories.map((folder) => (
+                    <option key={folder.value} value={folder.category || folder.value}>
+                      {folder.label}
+                    </option>
+                  ))}
+                </datalist>
               </label>
               <p className="-mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Tag className="size-3.5" />

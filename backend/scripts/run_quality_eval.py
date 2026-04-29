@@ -202,6 +202,8 @@ class FallbackEvalRunner(BaseEvalRunner):
             document.title = self.processor._apply_title_hint(document.title, interpretation)
             document.category = self.processor._apply_category_hint(document.category, interpretation)
             document.document_type = self.processor._refined_document_type(document.document_type, interpretation)
+            document.title = self.processor._clean_final_title(document.title, interpretation)
+            document.merchant_name = self.processor._clean_final_merchant(document.merchant_name)
             if interpretation.summary_hint:
                 document.summary = interpretation.summary_hint
             document.tags = self.processor._merge_tags(document.tags, interpretation, document.document_type)
@@ -591,14 +593,16 @@ def looks_review_oriented(value: str) -> bool:
 
 def conflicting_tag(profile: str, tags: list[str]) -> str | None:
     conflicts = {
-        "syllabus": {"notice", "generic_document", "other"},
-        "course_guide": {"notice", "generic_document", "other"},
-        "presentation_guide": {"notice", "generic_document", "other"},
-        "resume_profile": {"notice", "generic_document", "other"},
-        "profile_record": {"notice", "generic_document", "other"},
-        "repair_service_receipt": {"utilities", "generic_document", "other"},
-        "utility_bill": {"repair_service", "generic_document", "other"},
-        "invoice": {"generic_document", "notice", "other"},
+        "syllabus": {"memo", "notice", "office", "generic_document", "other"},
+        "course_guide": {"memo", "notice", "office", "generic_document", "other"},
+        "presentation_guide": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
+        "resume_profile": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "profile_record", "generic_document", "other"},
+        "profile_record": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "generic_document", "other"},
+        "repair_service_receipt": {"utilities", "notice", "memo", "generic_document", "other"},
+        "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+        "invoice": {"retail", "food_drink", "utilities", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+        "meeting_notice": {"receipt", "retail", "food_drink", "utilities", "generic_document", "other"},
+        "instructional_memo": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
     }
     for tag in tags:
         if tag in conflicts.get(profile, set()):

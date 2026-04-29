@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { DocumentRow } from "@/components/document-row";
+import { DocumentList } from "@/components/document-list";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import type { DocumentListResponse } from "@/types/document";
@@ -10,9 +10,13 @@ import type { DocumentListResponse } from "@/types/document";
 export default function ReviewPage() {
   const [data, setData] = useState<DocumentListResponse | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.review().then(setData).catch(() => setData(null));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <main className="shell py-8">
@@ -21,9 +25,7 @@ export default function ReviewPage() {
         <p className="mt-2 text-muted-foreground">The priority queue for documents that need correction, confirmation, or a second look.</p>
       </div>
       {data?.items.length ? (
-        <div className="space-y-3">
-          {data.items.map((document) => <DocumentRow key={document.id} document={document} />)}
-        </div>
+        <DocumentList documents={data.items} onChanged={load} returnTo="/review" />
       ) : (
         <Card><CardContent className="p-10 text-center text-muted-foreground">No documents currently need review.</CardContent></Card>
       )}

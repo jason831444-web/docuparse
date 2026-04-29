@@ -154,10 +154,11 @@ class CategoryInterpretationService:
             )
 
         if self._looks_like_presentation_guide(lowered):
+            subtype = "speaking_notes" if any(term in lowered for term in ["script", "speaker notes", "speaking notes", "talk track", "say:"]) else "presentation_guide"
             return CategoryInterpretation(
                 category="presentation_guide",
                 profile="presentation_guide",
-                subtype="presentation_guide",
+                subtype=subtype,
                 title_hint=title_hint or "Presentation Guide",
                 summary_hint="Presentation guide with audience, slide flow, speaking notes, and rehearsal guidance.",
                 reasons=["Detected presentation structure, audience, and speaking-note signals."],
@@ -170,7 +171,7 @@ class CategoryInterpretationService:
                 category="profile_record",
                 profile="profile_record",
                 subtype=subtype,
-                title_hint="Profile Note",
+                title_hint=self._profile_title(text) or "Profile Note",
                 summary_hint="Profile-like text containing identity or affiliation facts.",
                 reasons=["Detected multiple labeled identity fields."],
                 confidence=0.85,
@@ -458,3 +459,9 @@ class CategoryInterpretationService:
     def _invoice_number(self, text: str) -> str | None:
         match = re.search(r"\b(?:invoice(?:\s+number)?|invoice\s*#)\s*[:|,]?\s*([A-Z0-9-]{4,})", text, flags=re.IGNORECASE)
         return match.group(1) if match else None
+
+    def _profile_title(self, text: str) -> str | None:
+        match = re.search(r"^name\s*:\s*([A-Za-z][A-Za-z .'-]{1,80})$", text, flags=re.IGNORECASE | re.MULTILINE)
+        if match:
+            return f"{match.group(1).strip()} Profile"
+        return None

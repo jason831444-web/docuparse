@@ -29,11 +29,29 @@
 }
 
 body {
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 1));
+  background:
+    radial-gradient(circle at top left, rgba(219, 234, 254, 0.42), transparent 28rem),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 1));
   color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .shell {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

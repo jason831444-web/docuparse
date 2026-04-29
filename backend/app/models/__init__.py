@@ -1,3 +1,3 @@
-from app.models.document import Document, DocumentType, ProcessingStatus
+from app.models.document import CategoryFolder, Document, DocumentType, ProcessingStatus
 
-__all__ = ["Document", "DocumentType", "ProcessingStatus"]
+__all__ = ["CategoryFolder", "Document", "DocumentType", "ProcessingStatus"]

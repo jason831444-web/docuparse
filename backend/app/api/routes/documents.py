@@ -1,15 +1,29 @@
 from datetime import date
+from io import BytesIO
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.document import Document, DocumentType, ProcessingStatus
-from app.schemas.document import ActivitySummary, DocumentListResponse, DocumentRead, DocumentStats, DocumentUpdate, FolderSummary
+from app.models.document import CategoryFolder, Document, DocumentType, ProcessingStatus
+from app.schemas.document import (
+    ActivitySummary,
+    BulkDocumentRequest,
+    CategoryFolderCreate,
+    DocumentListResponse,
+    DocumentRead,
+    DocumentStats,
+    DocumentUpdate,
+    FolderSummary,
+)
 from app.services.export import document_to_json, documents_to_csv
+from app.services.category_taxonomy import category_path_for, clean_tags_for_context, display_label, normalize_category, path_matches_document
+from app.services.persistence_safety import sanitize_for_postgres
 from app.services.queue_service import get_document_queue
 from app.services.storage import get_storage_service
 from app.services.workflow_enrichment import DocumentWorkflowEnrichmentService
@@ -22,6 +36,26 @@ def _to_read(document: Document) -> DocumentRead:
     return DocumentRead.model_validate(
         {**document.__dict__, "file_url": storage.public_url(document.stored_file_path)}
     )
+
+
+def _search_filter(search: str):
+    terms = [term for term in search.strip().split() if term]
+    if not terms:
+        return None
+    searchable_fields = [
+        Document.title,
+        Document.summary,
+        Document.workflow_summary,
+        Document.merchant_name,
+        Document.raw_text,
+        Document.original_filename,
+        Document.category,
+    ]
+    per_term = []
+    for term in terms:
+        needle = f"%{term}%"
+        per_term.append(or_(*(func.coalesce(field, "").ilike(needle) for field in searchable_fields)))
+    return and_(*per_term)
 
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -65,12 +99,17 @@ def list_documents(
 ) -> DocumentListResponse:
     filters = []
     if search:
-        needle = f"%{search}%"
-        filters.append(or_(Document.title.ilike(needle), Document.raw_text.ilike(needle), Document.merchant_name.ilike(needle)))
+        search_filter = _search_filter(search)
+        if search_filter is not None:
+            filters.append(search_filter)
     if document_type:
         filters.append(Document.document_type == document_type)
+    category_filter = None
     if category:
-        filters.append(Document.category == category)
+        category_filter = category
+        normalized_category = normalize_category(category)
+        if ">" not in category and normalized_category:
+            filters.append(Document.category == normalized_category)
     if source_file_type:
         filters.append(Document.source_file_type == source_file_type)
     if processing_status:
@@ -96,8 +135,17 @@ def list_documents(
     sort_column = getattr(Document, sort_by)
     stmt = stmt.order_by(asc(sort_column) if order == "asc" else desc(sort_column))
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    total = db.scalar(count_stmt) or 0
-    items = [_to_read(document) for document in db.scalars(stmt).all()]
+    documents = list(db.scalars(stmt).all())
+    if category_filter and ">" in category_filter:
+        all_stmt = select(Document).order_by(asc(sort_column) if order == "asc" else desc(sort_column))
+        if where_clause is not None:
+            all_stmt = all_stmt.where(where_clause)
+        documents = [document for document in db.scalars(all_stmt).all() if path_matches_document(document, category_filter)]
+        total = len(documents)
+        documents = documents[(page - 1) * page_size : page * page_size]
+    else:
+        total = db.scalar(count_stmt) or 0
+    items = [_to_read(document) for document in documents]
     return DocumentListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -149,6 +197,36 @@ def list_categories(db: Session = Depends(get_db)) -> list[FolderSummary]:
     return _folder_summary_rows(db, by="category")
 
 
+@router.post("/categories", response_model=FolderSummary, status_code=status.HTTP_201_CREATED)
+def create_category_folder(payload: CategoryFolderCreate, db: Session = Depends(get_db)) -> FolderSummary:
+    category = normalize_category(payload.category or payload.label)
+    if not category:
+        raise HTTPException(status_code=400, detail="Category folder name is required.")
+    parent = normalize_category(payload.parent)
+    value = f"{parent}>{category}" if parent else category
+    existing = db.scalar(select(CategoryFolder).where(CategoryFolder.value == value))
+    if existing:
+        return FolderSummary(
+            label=existing.label,
+            value=existing.value,
+            count=0,
+            parent=existing.parent,
+            depth=1 if existing.parent else 0,
+            category=existing.category,
+            custom=True,
+        )
+    folder = CategoryFolder(
+        value=value,
+        label=f"{display_label(parent)} > {display_label(category)}" if parent else display_label(category),
+        parent=parent,
+        category=category,
+    )
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+    return FolderSummary(label=folder.label, value=folder.value, count=0, parent=folder.parent, depth=1 if folder.parent else 0, category=folder.category, custom=True)
+
+
 @router.get("/file-types", response_model=list[FolderSummary])
 def list_file_types(db: Session = Depends(get_db)) -> list[FolderSummary]:
     return _folder_summary_rows(db, by="source_file_type")
@@ -198,6 +276,45 @@ def export_csv(db: Session = Depends(get_db)) -> Response:
     )
 
 
+@router.post("/bulk/download")
+def bulk_download_originals(payload: BulkDocumentRequest, db: Session = Depends(get_db)) -> Response:
+    documents = db.scalars(select(Document).where(Document.id.in_(payload.ids)).order_by(Document.created_at)).all()
+    if not documents:
+        raise HTTPException(status_code=404, detail="No matching documents found.")
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        used: set[str] = set()
+        for document in documents:
+            path = Path(document.stored_file_path)
+            if not path.exists():
+                continue
+            name = document.original_filename or path.name
+            if name in used:
+                stem = Path(name).stem
+                suffix = Path(name).suffix
+                name = f"{stem}-{document.id}{suffix}"
+            used.add(name)
+            archive.write(path, arcname=name)
+    return Response(
+        buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=docuparse-originals.zip"},
+    )
+
+
+@router.post("/bulk/delete")
+def bulk_delete_documents(payload: BulkDocumentRequest, db: Session = Depends(get_db)) -> dict[str, int]:
+    documents = db.scalars(select(Document).where(Document.id.in_(payload.ids))).all()
+    storage = get_storage_service()
+    deleted = 0
+    for document in documents:
+        storage.delete(document.stored_file_path)
+        db.delete(document)
+        deleted += 1
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.get("/{document_id}", response_model=DocumentRead)
 def get_document(document_id: UUID, db: Session = Depends(get_db)) -> DocumentRead:
     document = db.get(Document, document_id)
@@ -211,7 +328,19 @@ def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = De
     document = db.get(Document, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    values = sanitize_for_postgres(payload.model_dump(exclude_unset=True))
+    if "category" in values:
+        values["category"] = normalize_category(values.get("category"))
+    if "tags" in values:
+        values["tags"] = clean_tags_for_context(
+            values.get("tags") or [],
+            category=values.get("category") or document.category,
+            document_type=getattr(document.document_type, "value", str(document.document_type)),
+            key_dates=document.key_dates,
+            follow_up_required=document.follow_up_required,
+            urgency_level=document.urgency_level,
+        )
+    for key, value in values.items():
         setattr(document, key, value)
     workflow = DocumentWorkflowEnrichmentService().enrich(document, document.raw_text)
     document.workflow_summary = workflow.workflow_summary
@@ -220,7 +349,16 @@ def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = De
     document.key_dates = workflow.key_dates
     document.urgency_level = workflow.urgency_level
     document.follow_up_required = workflow.follow_up_required
-    document.workflow_metadata = workflow.workflow_metadata or None
+    document.workflow_metadata = sanitize_for_postgres(workflow.workflow_metadata or None)
+    document.tags = clean_tags_for_context(
+        document.tags,
+        category=document.category,
+        profile=(workflow.workflow_metadata or {}).get("content_profile") if workflow.workflow_metadata else None,
+        document_type=getattr(document.document_type, "value", str(document.document_type)),
+        key_dates=workflow.key_dates,
+        follow_up_required=workflow.follow_up_required,
+        urgency_level=workflow.urgency_level,
+    )
     document.review_required = document.review_required or bool(workflow.warnings)
     if document.processing_status not in {ProcessingStatus.processing, ProcessingStatus.queued, ProcessingStatus.failed, ProcessingStatus.confirmed}:
         document.processing_status = ProcessingStatus.needs_review if document.review_required else ProcessingStatus.ready
@@ -301,32 +439,81 @@ def export_document_json(document_id: UUID, db: Session = Depends(get_db)) -> Re
 
 
 def _folder_summary_rows(db: Session, by: str) -> list[FolderSummary]:
-    field = getattr(Document, by)
-    rows = db.execute(
-        select(
-            field,
-            func.count(Document.id),
-            func.count().filter(Document.processing_status == ProcessingStatus.needs_review),
-            func.count().filter(Document.processing_status == ProcessingStatus.confirmed),
-            func.count().filter(Document.processing_status.in_([ProcessingStatus.processing, ProcessingStatus.queued])),
-        )
-        .where(field.is_not(None))
-        .group_by(field)
-        .order_by(desc(func.count(Document.id)), asc(field))
-    ).all()
-    result: list[FolderSummary] = []
-    for value, count, needs_review, confirmed, processing in rows:
-        if not value:
-            continue
-        label = str(value).replace("_", " ").title()
-        result.append(
-            FolderSummary(
-                label=label,
-                value=str(value),
-                count=count or 0,
-                needs_review=needs_review or 0,
-                confirmed=confirmed or 0,
-                processing=processing or 0,
+    if by != "category":
+        field = getattr(Document, by)
+        rows = db.execute(
+            select(
+                field,
+                func.count(Document.id),
+                func.count().filter(Document.processing_status == ProcessingStatus.needs_review),
+                func.count().filter(Document.processing_status == ProcessingStatus.confirmed),
+                func.count().filter(Document.processing_status.in_([ProcessingStatus.processing, ProcessingStatus.queued])),
             )
+            .where(field.is_not(None))
+            .group_by(field)
+            .order_by(desc(func.count(Document.id)), asc(field))
+        ).all()
+        result: list[FolderSummary] = []
+        for value, count, needs_review, confirmed, processing in rows:
+            if not value:
+                continue
+            result.append(
+                FolderSummary(
+                    label=display_label(str(value)),
+                    value=str(value),
+                    count=count or 0,
+                    needs_review=needs_review or 0,
+                    confirmed=confirmed or 0,
+                    processing=processing or 0,
+                )
+            )
+        return result
+
+    documents = db.scalars(select(Document)).all()
+    grouped: dict[str, dict] = {}
+    for document in documents:
+        path = category_path_for(document)
+        row = grouped.setdefault(
+            path.value,
+            {
+                "label": path.label,
+                "value": path.value,
+                "count": 0,
+                "needs_review": 0,
+                "confirmed": 0,
+                "processing": 0,
+                "parent": path.parent,
+                "depth": path.depth,
+                "category": path.category,
+                "custom": False,
+            },
         )
-    return result
+        row["count"] += 1
+        if document.processing_status == ProcessingStatus.needs_review:
+            row["needs_review"] += 1
+        if document.processing_status == ProcessingStatus.confirmed:
+            row["confirmed"] += 1
+        if document.processing_status in {ProcessingStatus.processing, ProcessingStatus.queued}:
+            row["processing"] += 1
+
+    for folder in db.scalars(select(CategoryFolder).order_by(CategoryFolder.value)).all():
+        grouped.setdefault(
+            folder.value,
+            {
+                "label": folder.label,
+                "value": folder.value,
+                "count": 0,
+                "needs_review": 0,
+                "confirmed": 0,
+                "processing": 0,
+                "parent": folder.parent,
+                "depth": 1 if folder.parent else 0,
+                "category": folder.category,
+                "custom": True,
+            },
+        )
+
+    return [
+        FolderSummary(**row)
+        for row in sorted(grouped.values(), key=lambda item: (-item["count"], item["label"]))
+    ]

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { DocumentRow } from "@/components/document-row";
+import { DocumentList } from "@/components/document-list";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import type { DocumentListResponse } from "@/types/document";
@@ -10,9 +10,13 @@ import type { DocumentListResponse } from "@/types/document";
 export default function FavoritesPage() {
   const [data, setData] = useState<DocumentListResponse | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.favorites().then(setData).catch(() => setData(null));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <main className="shell py-8">
@@ -21,9 +25,7 @@ export default function FavoritesPage() {
         <p className="mt-2 text-muted-foreground">Pinned documents stay close at hand for repeated review, approval, or export.</p>
       </div>
       {data?.items.length ? (
-        <div className="space-y-3">
-          {data.items.map((document) => <DocumentRow key={document.id} document={document} />)}
-        </div>
+        <DocumentList documents={data.items} onChanged={load} returnTo="/favorites" />
       ) : (
         <Card><CardContent className="p-10 text-center text-muted-foreground">Pin documents from the detail page to keep them here.</CardContent></Card>
       )}

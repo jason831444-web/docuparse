@@ -7,34 +7,46 @@ import { StatusBadge } from "@/components/status-badge";
 import { documentSummaryShort, formatDate, formatMoney, primaryCategoryLabel, titleCaseLabel } from "@/lib/utils";
 import type { DocumentRecord } from "@/types/document";
 
-export function DocumentCard({ document }: { document: DocumentRecord }) {
+export function DocumentCard({ document, selected = false, onSelect, returnTo }: { document: DocumentRecord; selected?: boolean; onSelect?: (checked: boolean) => void; returnTo?: string }) {
+  const href = returnTo ? `/documents/${document.id}?from=${encodeURIComponent(returnTo)}` : `/documents/${document.id}`;
   return (
-    <Link href={`/documents/${document.id}`}>
-        <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
-          <CardContent className="space-y-4 p-5">
-            <div className="flex items-start justify-between gap-3">
+    <Card className="h-full min-w-0 overflow-hidden transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex min-w-0 items-start gap-3">
+          {onSelect ? (
+            <input
+              aria-label={`Select ${document.title || document.original_filename}`}
+              type="checkbox"
+              className="mt-1 size-4"
+              checked={selected}
+              onChange={(event) => onSelect(event.target.checked)}
+            />
+          ) : null}
+          <Link href={href} className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="truncate font-semibold">{document.title || document.original_filename}</h3>
-                  {document.is_favorite ? <Star className="size-4 fill-amber-400 text-amber-400" /> : null}
+                <div className="flex min-w-0 items-start gap-2">
+                  <h3 className="line-clamp-2 break-words font-semibold leading-snug">{document.title || document.original_filename}</h3>
+                  {document.is_favorite ? <Star className="mt-0.5 size-4 shrink-0 fill-amber-400 text-amber-400" /> : null}
                 </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{documentSummaryShort(document, 88)}</p>
+                <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{documentSummaryShort(document, 120)}</p>
               </div>
-              <StatusBadge status={document.processing_status} />
+              <div className="shrink-0"><StatusBadge status={document.processing_status} /></div>
             </div>
+          </Link>
+        </div>
           <div className="flex flex-wrap gap-2">
             <Badge className="bg-accent text-accent-foreground">{primaryCategoryLabel(document)}</Badge>
             <Badge variant="outline">{titleCaseLabel(document.document_type)}</Badge>
             {document.source_file_type ? <Badge variant="outline">{document.source_file_type.toUpperCase()}</Badge> : null}
           </div>
           <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-            <span className="flex items-center gap-2"><Calendar className="size-4" />{formatDate(document.extracted_date)}</span>
-            <span className="flex items-center gap-2"><DollarSign className="size-4" />{formatMoney(document.extracted_amount, document.currency || "USD")}</span>
-            <span className="flex items-center gap-2"><FileType2 className="size-4" />{titleCaseLabel(document.source_file_type || document.mime_type)}</span>
+            {document.extracted_date ? <span className="flex min-w-0 items-center gap-2"><Calendar className="size-4 shrink-0" /><span className="truncate">{formatDate(document.extracted_date)}</span></span> : null}
+            <span className="flex min-w-0 items-center gap-2"><DollarSign className="size-4 shrink-0" /><span className="truncate">{formatMoney(document.extracted_amount, document.currency || "USD")}</span></span>
+            <span className="flex min-w-0 items-center gap-2"><FileType2 className="size-4 shrink-0" /><span className="truncate">{titleCaseLabel(document.source_file_type || document.mime_type)}</span></span>
           </div>
-          <div className="text-sm text-muted-foreground flex items-center gap-2"><Tag className="size-4" />{document.tags.slice(0, 3).join(", ") || "No tags"}</div>
-        </CardContent>
-      </Card>
-    </Link>
+          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><Tag className="size-4 shrink-0" /><span className="truncate">{document.tags.slice(0, 3).join(", ") || "No tags"}</span></div>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from app.models.document import Document, DocumentType
+
+
+ROOT_LABELS = {
+    "receipt": "Receipt",
+    "document": "Document",
+    "memo": "Memo",
+    "notice": "Notice",
+    "presentation": "Presentation",
+    "other": "Other",
+}
+
+ALIASES = {
+    "repair_service_receipt": "repair_service",
+    "receipt": "retail",
+    "utilities": "utility_bill",
+    "utility": "utility_bill",
+    "profile": "profile_record",
+    "education_record": "profile_record",
+}
+
+LABEL_ALIASES = {
+    "retail": "Retail",
+    "repair_service": "Repair Service",
+    "utility_bill": "Utility Bill",
+    "invoice": "Invoice",
+    "syllabus": "Syllabus",
+    "course_guide": "Course Guide",
+    "presentation_guide": "Presentation Guide",
+    "speaking_notes": "Speaking Notes",
+    "resume_profile": "Resume Profile",
+    "profile_record": "Profile Record",
+    "meeting_notice": "Meeting Notice",
+    "instructional_memo": "Instructional Memo",
+}
+
+TIME_SENSITIVE_TAGS = {"time_sensitive", "time-sensitive", "urgent", "deadline"}
+
+TAG_CONFLICTS = {
+    "syllabus": {"memo", "notice", "office", "time_sensitive", "generic_document", "other"},
+    "course_guide": {"memo", "notice", "office", "time_sensitive", "generic_document", "other"},
+    "presentation_guide": {"receipt", "retail", "food_drink", "repair_service", "utility_bill", "notice", "memo", "generic_document", "other"},
+    "speaking_notes": {"receipt", "retail", "food_drink", "repair_service", "utility_bill", "notice", "memo", "generic_document", "other"},
+    "resume_profile": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "profile_record", "generic_document", "other", "time_sensitive"},
+    "profile_record": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "generic_document", "other", "time_sensitive"},
+    "repair_service": {"utility_bill", "notice", "memo", "time_sensitive", "generic_document", "other"},
+    "repair_service_receipt": {"utility_bill", "notice", "memo", "time_sensitive", "generic_document", "other"},
+    "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time_sensitive", "generic_document", "other"},
+    "invoice": {"retail", "food_drink", "utility_bill", "receipt", "notice", "memo", "time_sensitive", "generic_document", "other"},
+    "meeting_notice": {"receipt", "retail", "food_drink", "utility_bill", "generic_document", "other"},
+    "instructional_memo": {"receipt", "retail", "food_drink", "repair_service", "utility_bill", "notice", "generic_document", "other", "time_sensitive"},
+}
+
+CLEAR_TIME_SENSITIVE_CATEGORIES = {"meeting_notice", "policy_notice"}
+
+
+@dataclass(frozen=True)
+class CategoryPath:
+    value: str
+    label: str
+    parent: str | None
+    depth: int
+    category: str | None
+
+
+def normalize_category(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = re.sub(r"[\s/>\-]+", "_", value.strip().lower())
+    cleaned = re.sub(r"[^a-z0-9_]+", "", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    if not cleaned:
+        return None
+    return ALIASES.get(cleaned, cleaned)
+
+
+def display_label(value: str | None) -> str:
+    normalized = normalize_category(value)
+    if not normalized:
+        return "Uncategorized"
+    if normalized in ROOT_LABELS:
+        return ROOT_LABELS[normalized]
+    if normalized in LABEL_ALIASES:
+        return LABEL_ALIASES[normalized]
+    return " ".join(part.capitalize() for part in normalized.split("_"))
+
+
+def normalize_tags(tags: list[str] | None) -> list[str]:
+    cleaned = []
+    for tag in tags or []:
+        normalized = normalize_category(str(tag))
+        if normalized and normalized not in cleaned:
+            cleaned.append(normalized)
+    return cleaned
+
+
+def clean_tags_for_context(
+    tags: list[str] | None,
+    *,
+    category: str | None = None,
+    profile: str | None = None,
+    document_type: str | None = None,
+    key_dates: list | None = None,
+    follow_up_required: bool | None = None,
+    urgency_level: str | None = None,
+) -> list[str]:
+    cleaned = normalize_tags(tags)
+    context = normalize_category(profile) or normalize_category(category)
+    blocked = set(TAG_CONFLICTS.get(context or "", {"generic_document", "other"}))
+    cleaned = [tag for tag in cleaned if tag not in blocked]
+
+    has_explicit_timing = bool(key_dates) or bool(follow_up_required) or (urgency_level or "").lower() in {"medium", "high"}
+    if "time_sensitive" in cleaned and not (has_explicit_timing or context in CLEAR_TIME_SENSITIVE_CATEGORIES):
+        cleaned = [tag for tag in cleaned if tag != "time_sensitive"]
+
+    broad_tag = normalize_category(document_type)
+    if broad_tag in ROOT_LABELS and broad_tag not in cleaned:
+        cleaned.insert(0, broad_tag)
+    return cleaned
+
+
+def category_path_for(document: Document) -> CategoryPath:
+    leaf = normalize_category(document.category)
+    doc_type = getattr(document.document_type, "value", str(document.document_type or "document"))
+    root = normalize_category(doc_type) or "document"
+    if not leaf or leaf == root:
+        return CategoryPath(value=root, label=display_label(root), parent=None, depth=0, category=leaf)
+    if root == "document" and leaf not in {"retail", "repair_service"}:
+        return CategoryPath(value=leaf, label=display_label(leaf), parent=None, depth=0, category=leaf)
+    path = f"{root}>{leaf}"
+    return CategoryPath(value=path, label=f"{display_label(root)} > {display_label(leaf)}", parent=root, depth=1, category=leaf)
+
+
+def path_matches_document(document: Document, requested: str) -> bool:
+    normalized = normalize_category(requested)
+    path = category_path_for(document)
+    if requested == path.value:
+        return True
+    return bool(normalized and (normalized == normalize_category(document.category) or normalized == path.value))

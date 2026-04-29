@@ -114,6 +114,8 @@ class EvalRunner:
             document.title = self.processor._apply_title_hint(document.title, interpretation)
             document.category = self.processor._apply_category_hint(document.category, interpretation)
             document.document_type = self.processor._refined_document_type(document.document_type, interpretation)
+            document.title = self.processor._clean_final_title(document.title, interpretation)
+            document.merchant_name = self.processor._clean_final_merchant(document.merchant_name)
             document.tags = self.processor._merge_tags(document.tags, interpretation, document.document_type)
             if interpretation.summary_hint:
                 document.summary = interpretation.summary_hint
@@ -226,7 +228,19 @@ class EvalRunner:
                 issues.append(CaseIssue("warning", "fragment_action_item", f"Action item still looks like copied source text: {item}"))
 
         if result.profile and result.profile not in {"generic_document", "other"}:
-            conflicting_tags = {"notice", "generic_document"} if result.profile not in {"meeting_notice"} else set()
+            conflicts = {
+                "syllabus": {"memo", "notice", "office", "generic_document", "other"},
+                "course_guide": {"memo", "notice", "office", "generic_document", "other"},
+                "presentation_guide": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
+                "resume_profile": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "profile_record", "generic_document", "other"},
+                "profile_record": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "generic_document", "other"},
+                "repair_service_receipt": {"utilities", "notice", "memo", "generic_document", "other"},
+                "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+                "invoice": {"retail", "food_drink", "utilities", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
+                "meeting_notice": {"receipt", "retail", "food_drink", "utilities", "generic_document", "other"},
+                "instructional_memo": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
+            }
+            conflicting_tags = conflicts.get(result.profile, {"generic_document", "other"})
             for tag in result.tags:
                 if tag in conflicting_tags:
                     issues.append(CaseIssue("warning", "stale_tag", f"Tag conflicts with stronger final interpretation: {tag}"))

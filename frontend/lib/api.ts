@@ -19,6 +19,8 @@ export const api = {
   activity: () => request<ActivitySummary>("/documents/activity", { cache: "no-store" }),
   list: (params: URLSearchParams) => request<DocumentListResponse>(`/documents?${params.toString()}`, { cache: "no-store" }),
   categories: () => request<FolderSummary[]>("/documents/categories", { cache: "no-store" }),
+  createCategory: (payload: { label: string; parent?: string | null; category?: string | null }) =>
+    request<FolderSummary>("/documents/categories", { method: "POST", body: JSON.stringify(payload) }),
   fileTypes: () => request<FolderSummary[]>("/documents/file-types", { cache: "no-store" }),
   review: () => request<DocumentListResponse>("/documents/review", { cache: "no-store" }),
   favorites: () => request<DocumentListResponse>("/documents/favorites", { cache: "no-store" }),
@@ -33,6 +35,25 @@ export const api = {
   remove: async (id: string) => {
     const response = await fetch(`${API_BASE}/documents/${id}`, { method: "DELETE" });
     if (!response.ok) throw new Error("Could not delete document");
+  },
+  bulkDelete: async (ids: string[]) =>
+    request<{ deleted: number }>("/documents/bulk/delete", { method: "POST", body: JSON.stringify({ ids }) }),
+  bulkDownload: async (ids: string[]) => {
+    const response = await fetch(`${API_BASE}/documents/bulk/download`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error("Could not download selected files");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "docuparse-originals.zip";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
   reprocess: (id: string) => request<DocumentRecord>(`/documents/${id}/reprocess`, { method: "POST" }),
   confirm: (id: string) => request<DocumentRecord>(`/documents/${id}/confirm`, { method: "POST" }),

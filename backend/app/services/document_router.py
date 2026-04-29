@@ -94,7 +94,7 @@ class LightweightDocumentRouter:
         if parsed.document_type == DocumentType.receipt:
             return DocumentRoute("receipt_fast_path", ProcessingPath.medium, confidence=0.78, reasons=["Receipt-like fields were found in extracted text."])
 
-        if parsed.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo}:
+        if parsed.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo, DocumentType.presentation}:
             return DocumentRoute("notice_document_fast_path", ProcessingPath.medium, confidence=0.80, reasons=["Document text is sufficient for lightweight parsing."])
 
         return DocumentRoute("structured_text_path", ProcessingPath.medium, confidence=0.70, reasons=["Generic extracted text route."])
@@ -124,7 +124,7 @@ class LightweightDocumentRouter:
         receipt_complete = bool(parsed.merchant_name and parsed.extracted_date and parsed.extracted_amount)
         structured_enough = stats["amount_pattern_count"] >= 3 and stats["line_count"] >= 6
         low_noise = stats["noise_ratio"] <= 0.22
-        if quality and quality.sufficient and receipt_complete and structured_enough and low_noise and confidence >= 0.68:
+        if quality and quality.sufficient and receipt_complete and structured_enough and low_noise and confidence >= 0.72:
             return DocumentRoute(
                 "receipt_image_fast_path",
                 ProcessingPath.medium,
@@ -132,7 +132,7 @@ class LightweightDocumentRouter:
                 confidence=max(confidence, quality.score),
                 reasons=["Receipt OCR already contains merchant, date, and total with usable quality."],
             )
-        if quality and quality.sufficient and receipt_complete and confidence >= 0.62 and stats["noise_ratio"] <= 0.3:
+        if quality and quality.sufficient and receipt_complete and confidence >= 0.70 and stats["noise_ratio"] <= 0.22:
             return DocumentRoute(
                 "receipt_image_medium_path",
                 ProcessingPath.medium,

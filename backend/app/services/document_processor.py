@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from app.models.document import Document, ProcessingStatus
 from app.services.ai_document_understanding import LocalDocumentAIService, get_document_ai_service
 from app.services.category_interpretation import CategoryInterpretation
+from app.services.category_taxonomy import clean_tags_for_context, normalize_category
 from app.services.document_router import LightweightDocumentRouter
 from app.services.document_interpretation_service import DocumentInterpretationService
 from app.services.file_ingestion import FileIngestionService, NormalizedDocument
 from app.services.ocr import OCRService
 from app.services.parser import DocumentParser
+from app.services.persistence_safety import sanitize_for_postgres
 from app.services.quality_evaluation import DocumentQualityEvaluator, QualityEvaluation
 from app.services.workflow_enrichment import DocumentWorkflowEnrichmentService
 
@@ -57,16 +59,16 @@ class DocumentProcessor:
             structured_quality = self.quality.evaluate_structured_result(document, ai_result, extraction_quality)
             ingestion_notes = self._ingestion_notes(normalized, route)
 
-            document.raw_text = raw_text
+            document.raw_text = sanitize_for_postgres(raw_text)
             document.mime_type = normalized.mime_type or document.mime_type
             document.source_file_type = normalized.source_file_type
             document.extraction_method = normalized.extraction_method
-            document.ingestion_metadata = self._ingestion_metadata(normalized, route, extraction_quality, structured_quality)
+            document.ingestion_metadata = sanitize_for_postgres(self._ingestion_metadata(normalized, route, extraction_quality, structured_quality))
             document.confidence_score = ai_result.confidence_score or self._confidence(normalized)
             document.ai_document_type = ai_result.document_type
             document.ai_confidence_score = ai_result.confidence_score
             quality_notes = self._quality_notes(extraction_quality, structured_quality)
-            document.ai_extraction_notes = self._notes(ingestion_notes + quality_notes + ai_result.extraction_notes)
+            document.ai_extraction_notes = sanitize_for_postgres(self._notes(ingestion_notes + quality_notes + ai_result.extraction_notes))
             document.review_required = (
                 ai_result.review_required
                 or route.review_required
@@ -74,23 +76,23 @@ class DocumentProcessor:
                 or structured_quality.review_required
                 or bool(normalized.extraction_warnings)
             )
-            document.summary = ai_result.summary
+            document.summary = sanitize_for_postgres(ai_result.summary)
             document.extraction_provider = ai_result.extraction_provider or ai_result.provider
             document.refinement_provider = ai_result.refinement_provider
             provider_chain = self._provider_chain(normalized, route, ai_result.provider_chain or [ai_result.provider])
             document.provider_chain = "+".join(provider_chain)
             document.merge_strategy = ai_result.merge_strategy
-            document.field_sources = ai_result.field_sources or None
+            document.field_sources = sanitize_for_postgres(ai_result.field_sources or None)
             document.document_type = ai_result.document_type or parsed.document_type
-            document.title = ai_result.title or parsed.title
+            document.title = sanitize_for_postgres(ai_result.title or parsed.title)
             document.extracted_date = ai_result.extracted_date or parsed.extracted_date
             document.extracted_amount = ai_result.extracted_amount or parsed.extracted_amount
             document.subtotal = ai_result.subtotal
             document.tax = ai_result.tax
             document.currency = ai_result.currency or parsed.currency
-            document.merchant_name = ai_result.merchant_name or parsed.merchant_name
+            document.merchant_name = sanitize_for_postgres(ai_result.merchant_name or parsed.merchant_name)
             document.category = ai_result.category or parsed.category
-            document.tags = ai_result.tags or parsed.tags
+            document.tags = sanitize_for_postgres(ai_result.tags or parsed.tags)
             interpretation = self.category_interpreter.interpret(document, ai_result.cleaned_raw_text or raw_text)
             provider_chain = self._provider_chain(
                 normalized,
@@ -105,32 +107,34 @@ class DocumentProcessor:
             document.title = self._clean_final_title(document.title, interpretation)
             document.merchant_name = self._clean_final_merchant(document.merchant_name)
             if interpretation.summary_hint:
-                document.summary = interpretation.summary_hint
+                document.summary = sanitize_for_postgres(interpretation.summary_hint)
             document.tags = self._merge_tags(document.tags, interpretation, document.document_type)
-            document.ai_extraction_notes = self._notes(
+            document.ai_extraction_notes = sanitize_for_postgres(self._notes(
                 (ingestion_notes + quality_notes + ai_result.extraction_notes)
                 + self._interpretation_notes(interpretation)
-            )
-            document.ingestion_metadata = self._ingestion_metadata(
+            ))
+            document.ingestion_metadata = sanitize_for_postgres(self._ingestion_metadata(
                 normalized,
                 route,
                 extraction_quality,
                 structured_quality,
                 interpretation,
-            )
+            ))
             workflow = self.workflow_enrichment.enrich(document, ai_result.cleaned_raw_text or raw_text, interpretation)
-            document.workflow_summary = workflow.workflow_summary
-            document.action_items = workflow.action_items
-            document.warnings = workflow.warnings
-            document.key_dates = workflow.key_dates
+            document.workflow_summary = sanitize_for_postgres(workflow.workflow_summary)
+            document.action_items = sanitize_for_postgres(workflow.action_items)
+            document.warnings = sanitize_for_postgres(workflow.warnings)
+            document.key_dates = sanitize_for_postgres(workflow.key_dates)
             document.urgency_level = workflow.urgency_level
             document.follow_up_required = workflow.follow_up_required
-            document.workflow_metadata = workflow.workflow_metadata or None
+            document.workflow_metadata = sanitize_for_postgres(workflow.workflow_metadata or None)
             document.review_required = document.review_required or bool(workflow.warnings)
             document.processing_status = ProcessingStatus.needs_review if document.review_required else ProcessingStatus.ready
         except Exception as exc:
+            db.rollback()
+            document = db.get(Document, document.id) or document
             document.processing_status = ProcessingStatus.failed
-            document.processing_error = str(exc)
+            document.processing_error = sanitize_for_postgres(str(exc))
         db.add(document)
         db.commit()
         db.refresh(document)
@@ -295,14 +299,16 @@ class DocumentProcessor:
             "invoice",
         }
         if interpretation.profile in specific_profiles:
-            return interpretation.profile
-        return interpretation.category or current_category
+            return normalize_category(interpretation.profile)
+        return normalize_category(interpretation.category or current_category)
 
     def _refined_document_type(self, current_type, interpretation: CategoryInterpretation):
         profile = interpretation.profile
         if profile in {"syllabus", "course_guide", "resume_profile", "profile_record", "invoice", "utility_bill"}:
             return type(current_type).document
-        if profile in {"presentation_guide", "speaking_notes", "instructional_memo"}:
+        if profile in {"presentation_guide", "speaking_notes"}:
+            return type(current_type).presentation
+        if profile in {"instructional_memo"}:
             return type(current_type).memo
         if profile == "meeting_notice":
             return type(current_type).notice
@@ -313,26 +319,14 @@ class DocumentProcessor:
     def _merge_tags(self, current_tags: list[str], interpretation: CategoryInterpretation, document_type) -> list[str]:
         tags = list(current_tags or [])
         for value in [interpretation.profile, interpretation.category, interpretation.subtype]:
-            if value and value not in {"generic_document", "other", "document", "notice"}:
-                tags.append(value)
-        cleaned = list(dict.fromkeys(tag for tag in tags if tag))
-        if interpretation.profile and interpretation.profile not in {"generic_document", "other"}:
-            conflicting = {
-                "syllabus": {"memo", "notice", "office", "generic_document", "other"},
-                "course_guide": {"memo", "notice", "office", "generic_document", "other"},
-                "presentation_guide": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
-                "speaking_notes": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
-                "resume_profile": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "profile_record", "generic_document", "other"},
-                "profile_record": {"receipt", "retail", "food_drink", "utilities", "memo", "notice", "generic_document", "other"},
-                "repair_service_receipt": {"utilities", "notice", "memo", "generic_document", "other"},
-                "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
-                "invoice": {"retail", "food_drink", "utilities", "receipt", "notice", "memo", "time-sensitive", "generic_document", "other"},
-                "meeting_notice": {"receipt", "retail", "food_drink", "utilities", "generic_document", "other"},
-                "instructional_memo": {"receipt", "retail", "food_drink", "repair_service", "utilities", "notice", "generic_document", "other"},
-            }
-            blocked = conflicting.get(interpretation.profile, {"generic_document", "other"})
-            cleaned = [tag for tag in cleaned if tag not in blocked]
-        broad_tag = getattr(document_type, "value", str(document_type))
-        if broad_tag in {"receipt", "notice", "document", "memo", "other"} and broad_tag not in cleaned:
-            cleaned.insert(0, broad_tag)
-        return cleaned
+            normalized = normalize_category(value)
+            if normalized and normalized not in {"generic_document", "other", "document", "notice"}:
+                tags.append(normalized)
+        if interpretation.profile == "presentation_guide" and interpretation.subtype == "speaking_notes":
+            tags.append("script")
+        return clean_tags_for_context(
+            tags,
+            category=interpretation.category,
+            profile=interpretation.profile,
+            document_type=getattr(document_type, "value", str(document_type)),
+        )

@@ -1,7 +1,8 @@
 "use client";
 
+import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BellRing,
   FileHeart,
@@ -37,7 +38,15 @@ const authItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [query, setQuery] = useState("");
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = query.trim();
+    router.push(trimmed ? `/documents?search=${encodeURIComponent(trimmed)}` : "/documents");
+  }
 
   if (isAuthPage) {
     return (
@@ -102,10 +111,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0">
           <header className="sticky top-0 z-20 border-b bg-[hsl(var(--background))/0.86] backdrop-blur">
             <div className="shell flex h-16 items-center gap-4">
-              <div className="relative max-w-xl flex-1">
+              <form onSubmit={submitSearch} className="relative max-w-xl flex-1">
                 <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search title, summary, merchant, OCR text" readOnly />
-              </div>
+                <Input className="pl-9" placeholder="Search title, summary, merchant, OCR text" value={query} onChange={(event) => setQuery(event.target.value)} />
+              </form>
               <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground">Login</Link>
               <Link href="/signup" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Start free</Link>
             </div>

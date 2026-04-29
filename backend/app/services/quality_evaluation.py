@@ -114,7 +114,7 @@ class DocumentQualityEvaluator:
             if not ai_result.merchant_name:
                 reasons.append("Receipt merchant is missing.")
                 score -= 0.08
-        elif ai_result.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo}:
+        elif ai_result.document_type in {DocumentType.notice, DocumentType.document, DocumentType.memo, DocumentType.presentation}:
             if not ai_result.title:
                 reasons.append("Document title is weak or missing.")
                 score -= 0.08

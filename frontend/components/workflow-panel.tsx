@@ -2,7 +2,7 @@ import { Zap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, titleCaseLabel } from "@/lib/utils";
 import type { DocumentRecord } from "@/types/document";
 
 type WorkflowMetadata = Record<string, unknown> & {
@@ -177,7 +177,7 @@ export function WorkflowPanel({ document }: { document: DocumentRecord }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          <Badge>{workflowMode(document).replace("_", " ")}</Badge>
+          <Badge>{titleCaseLabel(workflowMode(document))}</Badge>
           <Badge className={urgency === "high" ? "border-red-300 bg-red-50 text-red-800" : urgency === "medium" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"}>
             {urgency} urgency
           </Badge>

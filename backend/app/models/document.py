@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, date
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Enum, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,7 @@ class DocumentType(str, enum.Enum):
     notice = "notice"
     document = "document"
     memo = "memo"
+    presentation = "presentation"
     other = "other"
 
 
@@ -78,3 +79,15 @@ class Document(Base):
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CategoryFolder(Base):
+    __tablename__ = "category_folders"
+    __table_args__ = (UniqueConstraint("value", name="uq_category_folders_value"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    value: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    parent: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    category: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

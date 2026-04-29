@@ -96,6 +96,20 @@ class FolderSummary(BaseModel):
     needs_review: int = 0
     confirmed: int = 0
     processing: int = 0
+    parent: str | None = None
+    depth: int = 0
+    category: str | None = None
+    custom: bool = False
+
+
+class CategoryFolderCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    parent: str | None = Field(default=None, max_length=80)
+    category: str | None = Field(default=None, max_length=80)
+
+
+class BulkDocumentRequest(BaseModel):
+    ids: list[UUID] = Field(min_length=1, max_length=100)
 
 
 class ActivitySummary(BaseModel):

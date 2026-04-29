@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Download, Grid2X2, Rows3, Search } from "lucide-react";
 import { toast } from "sonner";
 
-import { DocumentCard } from "@/components/document-card";
-import { DocumentRow } from "@/components/document-row";
+import { DocumentList } from "@/components/document-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,17 +15,41 @@ import type { DocumentListResponse, ProcessingStatus } from "@/types/document";
 const statuses: Array<"" | ProcessingStatus> = ["", "processing", "ready", "needs_review", "confirmed", "failed"];
 
 export default function DocumentsPage() {
+  return (
+    <Suspense fallback={<DocumentsSkeleton />}>
+      <DocumentsContent />
+    </Suspense>
+  );
+}
+
+function DocumentsSkeleton() {
+  return (
+    <main className="shell py-8">
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-lg bg-muted" />)}
+      </div>
+    </main>
+  );
+}
+
+function DocumentsContent() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("list");
   const [filters, setFilters] = useState({
-    search: "",
+    search: searchParams.get("search") ?? "",
     category: "",
     source_file_type: "",
     processing_status: "",
     sort_by: "updated_at",
     order: "desc"
   });
+
+  useEffect(() => {
+    const search = searchParams.get("search") ?? "";
+    setFilters((current) => current.search === search ? current : { ...current, search });
+  }, [searchParams]);
 
   const params = useMemo(() => {
     const next = new URLSearchParams();
@@ -35,13 +59,15 @@ export default function DocumentsPage() {
     return next;
   }, [filters]);
 
-  useEffect(() => {
+  const loadDocuments = useCallback(() => {
     setLoading(true);
     const handle = window.setTimeout(() => {
       api.list(params).then(setData).catch((error) => toast.error(error instanceof Error ? error.message : "Could not load documents")).finally(() => setLoading(false));
     }, 180);
     return () => window.clearTimeout(handle);
   }, [params]);
+
+  useEffect(() => loadDocuments(), [loadDocuments]);
 
   function setFilter(key: keyof typeof filters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -86,15 +112,7 @@ export default function DocumentsPage() {
           {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-lg bg-muted" />)}
         </div>
       ) : data?.items.length ? (
-        view === "grid" ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {data.items.map((document) => <DocumentCard key={document.id} document={document} />)}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {data.items.map((document) => <DocumentRow key={document.id} document={document} />)}
-          </div>
-        )
+        <DocumentList documents={data.items} view={view} onChanged={() => api.list(params).then(setData)} returnTo="/documents" />
       ) : (
         <Card>
           <CardContent className="p-10 text-center text-muted-foreground">No documents match those filters yet.</CardContent>
