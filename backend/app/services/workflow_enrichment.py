@@ -45,6 +45,10 @@ class DocumentWorkflowEnrichmentService:
             result = self._resume_profile(document, text, mode)
         elif profile in {"presentation_guide", "speaking_notes"} or document.document_type == DocumentType.presentation:
             result = self._presentation_guide(document, text, mode)
+        elif profile == "installation_guide":
+            result = self._installation_guide(document, text, mode)
+        elif profile == "implementation_schedule":
+            result = self._implementation_schedule(document, text, mode)
         elif profile == "invoice":
             result = self._invoice(document, text, mode)
         elif profile == "meeting_notice":
@@ -180,6 +184,10 @@ class DocumentWorkflowEnrichmentService:
             return f"{title or 'This course guide'} outlines course expectations and key academic details."
         if key in {"presentation_guide", "speaking_notes"}:
             return f"{title or 'This presentation guide'} organizes audience, slide flow, and preparation guidance."
+        if key == "installation_guide":
+            return f"{title or 'This setup guide'} explains installation, configuration, dependencies, and technical setup steps."
+        if key == "implementation_schedule":
+            return f"{title or 'This implementation schedule'} tracks engineering work, status, testing, and ownership."
         if key == "resume_profile":
             return f"{title or 'This resume profile'} highlights background, skills, and experience."
         if key == "profile_record":
@@ -398,6 +406,8 @@ class DocumentWorkflowEnrichmentService:
             "deadline", "due", "important", "required", "policy", "summary", "instructions",
             "meeting", "exam", "materials", "skills", "experience", "project", "audience",
             "speaker", "rehearse", "total", "tax", "subtotal", "service", "labor", "parts",
+            "installation", "setup", "configuration", "dependencies", "task", "feature",
+            "status", "testing", "coverage", "pipeline", "claimed", "roadmap",
         ]
         if mode:
             terms.extend(mode.replace("-", "_").split("_"))
@@ -448,6 +458,10 @@ class DocumentWorkflowEnrichmentService:
                 return "Use it to verify the merchant, date, total, and any itemized charges before filing."
             if profile in {"presentation_guide", "speaking_notes"}:
                 return "Use it to prepare the presentation flow, speaking points, timing, and materials."
+            if profile == "installation_guide":
+                return "Use it to verify prerequisites, commands, configuration, and deployment steps before implementation."
+            if profile == "implementation_schedule":
+                return "Use it to track task ownership, implementation progress, testing, coverage, and next planning steps."
             if profile == "resume_profile":
                 return "Use it to review qualifications, experience, and any follow-up details."
             if profile == "profile_record":
@@ -459,6 +473,10 @@ class DocumentWorkflowEnrichmentService:
             return "It is most useful for understanding the course structure, expectations, dates, and materials or policies that guide participation."
         if profile in {"presentation_guide", "speaking_notes"}:
             return "It is most useful for understanding how the presentation should be structured, delivered, and prepared."
+        if profile == "installation_guide":
+            return "It is most useful as technical documentation for setting up, configuring, and verifying a system or project."
+        if profile == "implementation_schedule":
+            return "It is most useful as a planning tracker for implementation status, testing work, ownership, and roadmap progress."
         if profile == "resume_profile":
             return "It is most useful for quickly understanding the candidate's background, skills, and evidence of experience."
         if profile == "profile_record":
@@ -640,6 +658,10 @@ class DocumentWorkflowEnrichmentService:
             return "Review the key course expectations, dates, and materials."
         if key in {"presentation_guide", "speaking_notes"}:
             return "Review the presentation flow and preparation guidance."
+        if key == "installation_guide":
+            return "Review prerequisites, setup commands, and configuration values."
+        if key == "implementation_schedule":
+            return "Review open tasks, ownership, testing, and coverage status."
         if key in {"resume_profile"}:
             return "Review the most important qualifications and experience details."
         if key in {"profile_record"}:
@@ -1155,6 +1177,70 @@ class DocumentWorkflowEnrichmentService:
             actions.append("Review slide flow, speaker notes, and delivery timing before presenting.")
         return self._dedupe(actions)
 
+    def _installation_guide(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        prerequisites = self._matching_lines(text, ["prerequisite", "requirement", "dependency", "install", "environment"])
+        commands = self._matching_lines(text, ["docker", "npm", "pip", "python", "run", "command", "migrate", "build"])
+        configuration = self._matching_lines(text, ["configure", "configuration", "env", "environment variable", "database", "api key", "port"])
+        verification = self._matching_lines(text, ["verify", "test", "health", "check", "smoke"])
+        actions = []
+        if prerequisites:
+            actions.append("Review prerequisites and dependencies before starting setup.")
+        if configuration:
+            actions.append("Confirm configuration and environment values for the target setup.")
+        if commands or verification:
+            actions.append("Run setup commands and verification checks in order.")
+        if not actions:
+            actions.append("Review setup steps, dependencies, and verification notes.")
+        summary = self._sentence([document.title, "technical setup guide", self._list_preview(prerequisites, "prerequisites", 2)])
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, document.title, profile="installation_guide"),
+            action_items=actions,
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=False,
+            workflow_metadata={
+                "technical_guide": {
+                    "document_subtype": "installation_guide",
+                    "prerequisites": prerequisites[:6],
+                    "setup_commands": commands[:8],
+                    "configuration_notes": configuration[:6],
+                    "verification_steps": verification[:5],
+                }
+            },
+        )
+
+    def _implementation_schedule(self, document: Document, text: str, mode: str) -> WorkflowEnrichment:
+        task_lines = self._matching_lines(text, ["task", "feature", "implementation", "roadmap", "milestone"])
+        status_lines = self._matching_lines(text, ["status", "claimed", "owner", "blocked", "done", "in progress"])
+        testing_lines = self._matching_lines(text, ["testing", "coverage", "pipeline", "qa", "test"])
+        sheet_names = self._sheet_names(text)
+        actions = []
+        if task_lines or status_lines:
+            actions.append("Review open implementation tasks, status, and claimed ownership.")
+        if testing_lines:
+            actions.append("Check testing, coverage, and pipeline status before the next milestone.")
+        if not actions:
+            actions.append("Review tracker rows for task status, ownership, and schedule changes.")
+        summary = self._sentence([document.title, "engineering implementation schedule", self._list_preview(sheet_names, "sheets", 3)])
+        return WorkflowEnrichment(
+            workflow_summary=summary or self._direct_text_summary(text, document.title, profile="implementation_schedule"),
+            action_items=actions,
+            warnings=[],
+            key_dates=self._key_dates(document, text),
+            urgency_level="low",
+            follow_up_required=True,
+            workflow_metadata={
+                "tracker": {
+                    "document_subtype": "implementation_schedule",
+                    "sheet_names": sheet_names,
+                    "task_rows": task_lines[:8],
+                    "status_rows": status_lines[:8],
+                    "testing_rows": testing_lines[:8],
+                }
+            },
+        )
+
     def _is_presentation_action(self, item: str) -> bool:
         lowered = item.lower()
         return any(
@@ -1499,6 +1585,10 @@ class DocumentWorkflowEnrichmentService:
             return "resume_profile"
         if self._looks_like_presentation_guide(text):
             return "presentation_guide"
+        if self._looks_like_technical_guide(text):
+            return "installation_guide"
+        if self._looks_like_implementation_schedule(text):
+            return "implementation_schedule"
         if self._looks_like_meeting_notice(text):
             return "meeting_notice"
         if self._looks_like_profile_record(text):
@@ -1540,8 +1630,29 @@ class DocumentWorkflowEnrichmentService:
 
     def _looks_like_profile_record(self, text: str) -> bool:
         lowered = text.lower()
-        signals = ["name:", "id:", "major:", "age:", "student id", "dob:", "department:"]
-        return sum(signal in lowered for signal in signals) >= 2
+        if self._looks_like_technical_guide(text) or self._looks_like_implementation_schedule(text):
+            return False
+        signals = [
+            r"(?m)^\s*name\s*:",
+            r"(?m)^\s*(?:student\s+)?id\s*:",
+            r"(?m)^\s*major\s*:",
+            r"(?m)^\s*age\s*:",
+            r"(?m)^\s*dob\s*:",
+            r"(?m)^\s*department\s*:",
+        ]
+        return sum(bool(re.search(signal, lowered)) for signal in signals) >= 2
+
+    def _looks_like_technical_guide(self, text: str) -> bool:
+        lowered = text.lower()
+        title_hits = sum(signal in lowered for signal in ["installation guide", "setup guide", "technical guide", "project setup", "engineering documentation"])
+        instruction_hits = sum(signal in lowered for signal in ["install", "installation", "setup", "configure", "configuration", "environment", "dependencies", "prerequisites", "run", "command", "docker", "api", "database"])
+        return title_hits >= 1 or instruction_hits >= 4
+
+    def _looks_like_implementation_schedule(self, text: str) -> bool:
+        lowered = text.lower()
+        structure_hits = sum(signal in lowered for signal in ["sheet:", "|", "task", "feature", "status", "claimed", "owner"])
+        planning_hits = sum(signal in lowered for signal in ["implementation", "schedule", "roadmap", "tracker", "testing", "coverage", "pipeline", "milestone"])
+        return (structure_hits >= 3 and planning_hits >= 2) or planning_hits >= 4
 
     def _context_label(self, category_context: dict[str, Any]) -> str | None:
         label = category_context.get("label")
@@ -1808,6 +1919,16 @@ class DocumentWorkflowEnrichmentService:
         match = re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", text)
         return match.group(0) if match else None
 
+    def _sheet_names(self, text: str) -> list[str]:
+        names = []
+        for line in text.splitlines():
+            match = re.match(r"\s*sheet\s*:\s*(.+?)\s*$", line, flags=re.IGNORECASE)
+            if match:
+                cleaned = self._clean_text_fragment(match.group(1))
+                if cleaned:
+                    names.append(cleaned)
+        return self._dedupe(names)[:6]
+
     def _semester(self, text: str) -> str | None:
         match = re.search(r"\b(?:spring|summer|fall|winter)\s+\d{4}\b", text, re.IGNORECASE)
         return match.group(0) if match else None
@@ -1834,7 +1955,10 @@ class DocumentWorkflowEnrichmentService:
 
     def _is_placeholder_title(self, value: str) -> bool:
         lowered = value.lower()
-        return bool(re.fullmatch(r"(page|slide)\s+\d+", lowered))
+        return bool(
+            re.fullmatch(r"(page|slide)\s+\d+", lowered)
+            or re.fullmatch(r"(?:연도|년도)\s*[.년]\s*월\s*[.월]\s*일\s*[.일]?", lowered)
+        )
 
 
 class _DateOnlyDocument:

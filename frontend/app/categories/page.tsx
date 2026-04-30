@@ -36,6 +36,21 @@ export default function CategoriesPage() {
     }
   }
 
+  async function deleteFolder(folder: FolderSummary) {
+    if (folder.count > 0) {
+      toast.error("Only empty category folders can be deleted");
+      return;
+    }
+    if (!window.confirm(`Delete empty category folder "${folder.label}"?`)) return;
+    try {
+      await api.deleteCategory(folder.value);
+      toast.success("Category folder deleted");
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete category");
+    }
+  }
+
   return (
     <main className="shell py-8">
       <div className="mb-6">
@@ -47,14 +62,21 @@ export default function CategoriesPage() {
           <Input placeholder="New category folder" value={label} onChange={(event) => setLabel(event.target.value)} />
           <select className="h-10 rounded-md border bg-white px-3 text-sm" value={parent} onChange={(event) => setParent(event.target.value)}>
             <option value="">Top level</option>
-            {["receipt", "document", "memo", "notice", "presentation"].map((item) => <option key={item} value={item}>{item}</option>)}
+            {folders.filter((folder) => folder.depth === 0).map((folder) => <option key={folder.value} value={folder.value}>{folder.label}</option>)}
           </select>
           <Button type="button" onClick={createFolder}>Add folder</Button>
         </CardContent>
       </Card>
       {folders.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {folders.map((folder) => <FolderCard key={folder.value} folder={folder} href={`/categories/${encodeURIComponent(folder.value)}`} />)}
+          {folders.map((folder) => (
+            <FolderCard
+              key={folder.value}
+              folder={folder}
+              href={`/categories/${encodeURIComponent(folder.value)}`}
+              onDelete={folder.custom && folder.count === 0 ? () => deleteFolder(folder) : undefined}
+            />
+          ))}
         </div>
       ) : (
         <Card><CardContent className="p-10 text-center text-muted-foreground">Categories will appear automatically as documents are analyzed.</CardContent></Card>

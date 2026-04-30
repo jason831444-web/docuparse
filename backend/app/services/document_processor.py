@@ -248,6 +248,12 @@ class DocumentProcessor:
             return interpretation.title_hint
         if "|" in current_title or re.match(r"^(title|name|invoice(?: number)?|vendor)\s*[:|]", current_title, flags=re.IGNORECASE):
             return interpretation.title_hint
+        if interpretation.profile in {"installation_guide", "implementation_schedule"} and (
+            self._looks_like_person_name_title(current_title)
+            or "profile" in current_title.lower()
+            or self._title_quality(current_title) < self._title_quality(interpretation.title_hint)
+        ):
+            return interpretation.title_hint
         if interpretation.profile in {"profile_record", "resume_profile"} and current_title != interpretation.title_hint:
             return interpretation.title_hint
         if interpretation.profile == "invoice" and current_title and "receipt" in current_title.lower():
@@ -258,8 +264,12 @@ class DocumentProcessor:
         cleaned = self._clean_text_fragment(title)
         if not cleaned:
             return interpretation.title_hint or title
+        if self._is_failed_placeholder(cleaned):
+            return self._clean_text_fragment(interpretation.title_hint)
         if interpretation.profile == "invoice" and "receipt" in cleaned.lower():
             return self._clean_text_fragment(interpretation.title_hint) or "Invoice"
+        if interpretation.profile in {"installation_guide", "implementation_schedule"} and self._looks_like_person_name_title(cleaned):
+            return self._clean_text_fragment(interpretation.title_hint) or cleaned
         if interpretation.profile in {"receipt", "repair_service_receipt"}:
             cleaned = re.sub(r"\s+receipt\s+receipt$", " receipt", cleaned, flags=re.IGNORECASE)
         return cleaned
@@ -284,6 +294,37 @@ class DocumentProcessor:
             return None
         return cleaned[:160]
 
+    def _title_quality(self, title: str | None) -> int:
+        cleaned = self._clean_text_fragment(title)
+        if not cleaned:
+            return -100
+        lowered = cleaned.lower()
+        score = 10
+        if any(keyword in lowered for keyword in ["installation guide", "setup guide", "technical guide", "implementation schedule", "project tracker", "roadmap"]):
+            score += 40
+        if any(keyword in lowered for keyword in ["guide", "manual", "schedule", "tracker", "roadmap", "implementation"]):
+            score += 16
+        if self._looks_like_person_name_title(cleaned):
+            score -= 30
+        if "|" in cleaned:
+            score -= 15
+        if len(cleaned.split()) > 12:
+            score -= 12
+        return score
+
+    def _looks_like_person_name_title(self, title: str | None) -> bool:
+        cleaned = self._clean_text_fragment(title)
+        if not cleaned:
+            return False
+        if not re.fullmatch(r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}", cleaned):
+            return False
+        lowered = cleaned.lower()
+        return not any(keyword in lowered for keyword in ["guide", "manual", "schedule", "tracker", "roadmap", "invoice", "statement", "profile", "syllabus"])
+
+    def _is_failed_placeholder(self, value: str) -> bool:
+        lowered = re.sub(r"\s+", " ", value).strip().lower()
+        return bool(re.fullmatch(r"(?:연도|년도)\s*[.년]\s*월\s*[.월]\s*일\s*[.일]?", lowered))
+
     def _apply_category_hint(self, current_category: str | None, interpretation: CategoryInterpretation) -> str | None:
         specific_profiles = {
             "syllabus",
@@ -292,6 +333,8 @@ class DocumentProcessor:
             "speaking_notes",
             "resume_profile",
             "profile_record",
+            "installation_guide",
+            "implementation_schedule",
             "repair_service_receipt",
             "utility_bill",
             "meeting_notice",
@@ -304,7 +347,7 @@ class DocumentProcessor:
 
     def _refined_document_type(self, current_type, interpretation: CategoryInterpretation):
         profile = interpretation.profile
-        if profile in {"syllabus", "course_guide", "resume_profile", "profile_record", "invoice", "utility_bill"}:
+        if profile in {"syllabus", "course_guide", "resume_profile", "profile_record", "installation_guide", "implementation_schedule", "invoice", "utility_bill"}:
             return type(current_type).document
         if profile in {"presentation_guide", "speaking_notes"}:
             return type(current_type).presentation

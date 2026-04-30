@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/status-badge";
+import { CategorySelector } from "@/components/category-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,16 +31,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { WorkflowPanel } from "@/components/workflow-panel";
 import { api } from "@/lib/api";
 import { documentSummaryDetailed, formatDateTime, primaryCategoryLabel, titleCaseLabel } from "@/lib/utils";
-import type { DocumentRecord, DocumentType, DocumentUpdate, FolderSummary } from "@/types/document";
+import type { DocumentRecord, DocumentUpdate, FolderSummary } from "@/types/document";
 
-const documentTypes: DocumentType[] = ["receipt", "notice", "document", "memo", "presentation", "other"];
 const detailTabs = ["original", "extracted", "ai"] as const;
 type DetailTab = (typeof detailTabs)[number];
 
 function toForm(document: DocumentRecord): DocumentUpdate & { tags_text: string } {
   return {
     title: document.title ?? "",
-    document_type: document.document_type,
     raw_text: document.raw_text ?? "",
     extracted_date: document.extracted_date ?? "",
     extracted_amount: document.extracted_amount ?? "",
@@ -226,6 +225,7 @@ export default function DocumentDetailPage() {
   const titleHint = readString(categoryInterpretation?.title_hint);
   const surfacedFields = readList(categoryInterpretation?.surfaced_fields);
   const isConfirmed = document.processing_status === "confirmed";
+  const selectedCategory = form.watch("category") ?? "";
 
   return (
     <main className="shell py-8">
@@ -234,7 +234,7 @@ export default function DocumentDetailPage() {
           <div className="mb-3 flex flex-wrap gap-2">
             <StatusBadge status={document.processing_status} />
             <Badge className="bg-accent text-accent-foreground">{categoryLabel}</Badge>
-            <Badge variant="outline">{titleCaseLabel(document.source_file_type || document.document_type)}</Badge>
+            {document.source_file_type ? <Badge variant="outline">{titleCaseLabel(document.source_file_type)}</Badge> : null}
             {document.is_favorite ? <Badge className="border-amber-300 bg-amber-50 text-amber-800">Pinned</Badge> : null}
           </div>
           <h1 className="text-3xl font-semibold tracking-normal">{document.title || titleHint || document.original_filename}</h1>
@@ -275,17 +275,11 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Primary category</p>
             <p className="mt-1 font-semibold">{categoryLabel}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Broad type</p>
-            <p className="mt-1 font-semibold">{titleCaseLabel(document.document_type)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -387,7 +381,6 @@ export default function DocumentDetailPage() {
               <CardContent className="space-y-4">
                 <InfoGrid
                   items={[
-                    ["Predicted type", document.ai_document_type ? titleCaseLabel(document.ai_document_type) : null],
                     ["Primary visible label", categoryLabel],
                     ["Interpretation profile", categoryProfile ? titleCaseLabel(categoryProfile) : null],
                     ["Title hint", titleHint],
@@ -463,16 +456,6 @@ export default function DocumentDetailPage() {
                 Title
                 <Input {...form.register("title")} />
               </label>
-              <label className="grid gap-2 text-sm font-medium">
-                Broad type
-                <select className="h-10 rounded-md border bg-white px-3 text-sm" {...form.register("document_type")}>
-                  {documentTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium">
                   Extracted date
@@ -503,17 +486,14 @@ export default function DocumentDetailPage() {
                   <Input {...form.register("merchant_name")} />
                 </label>
               </div>
-              <label className="grid gap-2 text-sm font-medium">
+              <div className="grid gap-2 text-sm font-medium">
                 Category folder
-                <Input placeholder="presentation_guide, retail, repair_service" list="category-options" {...form.register("category")} />
-                <datalist id="category-options">
-                  {categories.map((folder) => (
-                    <option key={folder.value} value={folder.category || folder.value}>
-                      {folder.label}
-                    </option>
-                  ))}
-                </datalist>
-              </label>
+                <CategorySelector
+                  value={selectedCategory}
+                  folders={categories}
+                  onChange={(value) => form.setValue("category", value, { shouldDirty: true })}
+                />
+              </div>
               <p className="-mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Tag className="size-3.5" />
                 Changing the category moves this document into a different AI-organized folder.

@@ -165,6 +165,62 @@ class CategoryInterpretationService:
                 confidence=0.87,
             )
 
+        if self._looks_like_technical_guide(text):
+            title = self._technical_guide_title(text) or title_hint or self._filename_title(document.original_filename) or "Setup Guide"
+            return CategoryInterpretation(
+                category="installation_guide",
+                profile="installation_guide",
+                subtype="technical_documentation",
+                title_hint=title,
+                summary_hint="Technical setup guide with installation, configuration, dependency, and runbook-style instructions.",
+                key_fields={
+                    "guide_keywords": self._keyword_hits(
+                        lowered,
+                        ["installation", "setup", "configuration", "environment", "dependencies", "prerequisites", "docker", "api", "database"],
+                    ),
+                },
+                workflow_hints={
+                    "review_focus": [
+                        "Verify prerequisites, environment variables, commands, and deployment steps before using the guide."
+                    ],
+                    "action_items": [
+                        "Review prerequisites and dependencies before starting setup.",
+                        "Confirm configuration and environment values for the target setup.",
+                    ],
+                },
+                reasons=["Detected installation/setup vocabulary and procedural technical-documentation structure."],
+                confidence=0.88,
+            )
+
+        if self._looks_like_implementation_schedule(text, document):
+            title = self._tracker_title(text, document) or title_hint or self._filename_title(document.original_filename) or "Implementation Schedule"
+            return CategoryInterpretation(
+                category="implementation_schedule",
+                profile="implementation_schedule",
+                subtype="project_tracker",
+                title_hint=title,
+                summary_hint="Engineering planning spreadsheet with implementation tasks, status, testing, coverage, and ownership signals.",
+                key_fields={
+                    "sheet_names": self._sheet_names(text),
+                    "tracker_keywords": self._keyword_hits(
+                        lowered,
+                        ["task", "feature", "schedule", "implementation", "testing", "coverage", "pipeline", "claimed", "status"],
+                    ),
+                    "header_hints": self._table_header_hints(text),
+                },
+                workflow_hints={
+                    "review_focus": [
+                        "Review task ownership, claimed status, implementation progress, testing, and coverage gaps."
+                    ],
+                    "action_items": [
+                        "Review open implementation tasks, status, and claimed ownership.",
+                        "Check testing, coverage, and pipeline status before the next milestone.",
+                    ],
+                },
+                reasons=["Detected spreadsheet-like rows with planning, task, status, testing, and implementation vocabulary."],
+                confidence=0.9,
+            )
+
         if self._looks_like_profile_record(lowered):
             subtype = "education_record" if any(term in lowered for term in ["major:", "student id", "department:"]) else "profile_record"
             return CategoryInterpretation(
@@ -272,6 +328,8 @@ class CategoryInterpretationService:
         lowered = value.lower()
         if re.fullmatch(r"(page|slide)\s+\d+", value.strip(), flags=re.IGNORECASE):
             return -100
+        if re.fullmatch(r"(?:연도|년도)\s*[.년]\s*월\s*[.월]\s*일\s*[.일]?", value.strip().lower()):
+            return -100
         if len(value) < 4 or len(value) > 120:
             return -40
         score = 30 - (index * 2)
@@ -279,6 +337,12 @@ class CategoryInterpretationService:
             score += 30
         if any(keyword in lowered for keyword in ["syllabus", "course", "guide", "presentation", "resume", "profile"]):
             score += 18
+        if any(keyword in lowered for keyword in ["installation guide", "setup guide", "technical guide", "implementation schedule", "project tracker", "development roadmap"]):
+            score += 30
+        if self._looks_like_person_name_line(value):
+            score -= 32
+        if "|" in value:
+            score -= 14
         if re.match(r"^[A-Z][A-Za-z0-9&,'./() -]{4,}$", value):
             score += 8
         if ":" in value:
@@ -380,8 +444,17 @@ class CategoryInterpretationService:
         return sum(signal in lowered for signal in signals) >= 2
 
     def _looks_like_profile_record(self, lowered: str) -> bool:
-        signals = ["name:", "id:", "student id", "major:", "age:", "department:", "dob:"]
-        return sum(signal in lowered for signal in signals) >= 2
+        if self._looks_like_technical_guide(lowered) or self._looks_like_implementation_schedule(lowered, None):
+            return False
+        signals = [
+            r"(?m)^\s*name\s*:",
+            r"(?m)^\s*(?:student\s+)?id\s*:",
+            r"(?m)^\s*major\s*:",
+            r"(?m)^\s*age\s*:",
+            r"(?m)^\s*department\s*:",
+            r"(?m)^\s*dob\s*:",
+        ]
+        return sum(bool(re.search(signal, lowered)) for signal in signals) >= 2
 
     def _looks_like_resume_profile(self, lowered: str) -> bool:
         signals = ["education", "experience", "projects", "skills", "technical skills", "gpa", "linkedin", "github", "resume"]
@@ -405,7 +478,12 @@ class CategoryInterpretationService:
         )
 
     def _looks_like_instructional_memo(self, lowered: str) -> bool:
-        if self._looks_like_presentation_guide(lowered) or self._looks_like_meeting_notice(lowered):
+        if (
+            self._looks_like_presentation_guide(lowered)
+            or self._looks_like_meeting_notice(lowered)
+            or self._looks_like_technical_guide(lowered)
+            or self._looks_like_implementation_schedule(lowered, None)
+        ):
             return False
         signals = [
             "memo",
@@ -465,3 +543,102 @@ class CategoryInterpretationService:
         if match:
             return f"{match.group(1).strip()} Profile"
         return None
+
+    def _looks_like_technical_guide(self, text: str) -> bool:
+        lowered = text.lower()
+        title_hits = sum(signal in lowered for signal in ["installation guide", "setup guide", "technical guide", "project setup", "engineering documentation"])
+        instruction_hits = sum(
+            bool(re.search(pattern, lowered))
+            for pattern in [
+                r"\binstall(?:ation)?\b",
+                r"\bsetup\b",
+                r"\bconfigure|configuration\b",
+                r"\benvironment(?: variables?)?\b",
+                r"\bdependencies|prerequisites\b",
+                r"\brun\b",
+                r"\bcommand\b",
+                r"\bdocker|api|database|server\b",
+            ]
+        )
+        return title_hits >= 1 or instruction_hits >= 4
+
+    def _looks_like_implementation_schedule(self, text: str, document: Document | None) -> bool:
+        lowered = text.lower()
+        is_spreadsheet = bool(document and document.source_file_type in {"xlsx", "csv"})
+        sheet_hits = len(self._sheet_names(text))
+        structure_hits = sum(signal in lowered for signal in ["|", "task", "feature", "status", "claimed", "owner"])
+        planning_hits = sum(signal in lowered for signal in ["implementation", "schedule", "roadmap", "tracker", "testing", "coverage", "pipeline", "milestone"])
+        header_hits = len(self._table_header_hints(text))
+        return (
+            (is_spreadsheet and planning_hits >= 2 and (structure_hits >= 2 or header_hits >= 2))
+            or (sheet_hits >= 1 and planning_hits >= 2 and structure_hits >= 2)
+            or planning_hits >= 4
+        )
+
+    def _technical_guide_title(self, text: str) -> str | None:
+        candidates: list[tuple[int, str]] = []
+        for index, line in enumerate(text.splitlines()[:18]):
+            cleaned = self._clean_title_candidate(line)
+            if not cleaned:
+                continue
+            lowered = cleaned.lower()
+            if self._looks_like_person_name_line(cleaned):
+                continue
+            score = self._score_title_candidate(cleaned, index, text)
+            if any(keyword in lowered for keyword in ["installation guide", "setup guide", "technical guide", "manual", "project setup"]):
+                score += 50
+            elif any(keyword in lowered for keyword in ["installation", "setup", "configure", "deployment"]):
+                score += 20
+            if score > 0:
+                candidates.append((score, cleaned))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (-item[0], len(item[1])))
+        return candidates[0][1]
+
+    def _tracker_title(self, text: str, document: Document | None) -> str | None:
+        sheet_names = self._sheet_names(text)
+        for sheet_name in sheet_names:
+            if re.search(r"\b(implementation|schedule|tracker|roadmap|plan|planning)\b", sheet_name, flags=re.IGNORECASE):
+                return sheet_name
+        for line in text.splitlines()[:14]:
+            cleaned = self._clean_title_candidate(line)
+            lowered = cleaned.lower()
+            if cleaned and re.search(r"\b(implementation|schedule|tracker|roadmap|planning)\b", lowered) and "|" not in cleaned:
+                return cleaned
+        return self._filename_title(document.original_filename if document else "")
+
+    def _sheet_names(self, text: str) -> list[str]:
+        names = []
+        for line in text.splitlines():
+            match = re.match(r"\s*sheet\s*:\s*(.+?)\s*$", line, flags=re.IGNORECASE)
+            if match:
+                cleaned = self._clean_title_candidate(match.group(1))
+                if cleaned:
+                    names.append(cleaned)
+        return list(dict.fromkeys(names))[:6]
+
+    def _table_header_hints(self, text: str) -> list[str]:
+        wanted = {"task", "feature", "schedule", "implementation", "testing", "coverage", "pipeline", "claimed", "status", "owner", "milestone"}
+        hits: list[str] = []
+        for line in text.splitlines()[:40]:
+            if "|" not in line:
+                continue
+            cells = [cell.strip().lower() for cell in line.split("|") if cell.strip()]
+            hits.extend(cell for cell in cells if cell in wanted)
+        return list(dict.fromkeys(hits))[:8]
+
+    def _looks_like_person_name_line(self, value: str) -> bool:
+        cleaned = value.strip()
+        if not re.fullmatch(r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}", cleaned):
+            return False
+        lowered = cleaned.lower()
+        return not any(keyword in lowered for keyword in ["guide", "manual", "schedule", "tracker", "roadmap", "invoice", "statement", "profile", "syllabus"])
+
+    def _filename_title(self, filename: str | None) -> str | None:
+        if not filename:
+            return None
+        stem = filename.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        cleaned = re.sub(r"[_-]+", " ", stem)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned[:120] if cleaned else None

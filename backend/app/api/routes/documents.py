@@ -16,13 +16,14 @@ from app.schemas.document import (
     BulkDocumentRequest,
     CategoryFolderCreate,
     DocumentListResponse,
+    DocumentNotification,
     DocumentRead,
     DocumentStats,
     DocumentUpdate,
     FolderSummary,
 )
 from app.services.export import document_to_json, documents_to_csv
-from app.services.category_taxonomy import category_path_for, clean_tags_for_context, display_label, normalize_category, path_matches_document
+from app.services.category_taxonomy import category_path_for, clean_tags_for_context, display_label, normalize_category_value
 from app.services.persistence_safety import sanitize_for_postgres
 from app.services.queue_service import get_document_queue
 from app.services.storage import get_storage_service
@@ -104,11 +105,9 @@ def list_documents(
             filters.append(search_filter)
     if document_type:
         filters.append(Document.document_type == document_type)
-    category_filter = None
     if category:
-        category_filter = category
-        normalized_category = normalize_category(category)
-        if ">" not in category and normalized_category:
+        normalized_category = normalize_category_value(category)
+        if normalized_category:
             filters.append(Document.category == normalized_category)
     if source_file_type:
         filters.append(Document.source_file_type == source_file_type)
@@ -136,15 +135,7 @@ def list_documents(
     stmt = stmt.order_by(asc(sort_column) if order == "asc" else desc(sort_column))
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     documents = list(db.scalars(stmt).all())
-    if category_filter and ">" in category_filter:
-        all_stmt = select(Document).order_by(asc(sort_column) if order == "asc" else desc(sort_column))
-        if where_clause is not None:
-            all_stmt = all_stmt.where(where_clause)
-        documents = [document for document in db.scalars(all_stmt).all() if path_matches_document(document, category_filter)]
-        total = len(documents)
-        documents = documents[(page - 1) * page_size : page * page_size]
-    else:
-        total = db.scalar(count_stmt) or 0
+    total = db.scalar(count_stmt) or 0
     items = [_to_read(document) for document in documents]
     return DocumentListResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -192,6 +183,22 @@ def get_activity(db: Session = Depends(get_db)) -> ActivitySummary:
     )
 
 
+@router.get("/notifications", response_model=list[DocumentNotification])
+def list_notifications(db: Session = Depends(get_db)) -> list[DocumentNotification]:
+    documents = db.scalars(select(Document).order_by(desc(Document.updated_at)).limit(40)).all()
+    notifications: list[DocumentNotification] = []
+    for document in documents:
+        if document.processing_status in {ProcessingStatus.processing, ProcessingStatus.queued}:
+            notifications.append(_notification(document, "processing", "Processing document", "Extraction and category interpretation are still running."))
+        elif document.processing_status == ProcessingStatus.failed:
+            notifications.append(_notification(document, "failed", "Processing failed", document.processing_error or "Review the document and retry processing."))
+        elif document.processing_status == ProcessingStatus.needs_review or document.review_required:
+            notifications.append(_notification(document, "review", "Review recommended", "This document needs a quick human check before confirmation."))
+        else:
+            notifications.append(_notification(document, "processed", "Document ready", "Document processing finished and it is available in its category folder."))
+    return notifications[:30]
+
+
 @router.get("/categories", response_model=list[FolderSummary])
 def list_categories(db: Session = Depends(get_db)) -> list[FolderSummary]:
     return _folder_summary_rows(db, by="category")
@@ -199,10 +206,10 @@ def list_categories(db: Session = Depends(get_db)) -> list[FolderSummary]:
 
 @router.post("/categories", response_model=FolderSummary, status_code=status.HTTP_201_CREATED)
 def create_category_folder(payload: CategoryFolderCreate, db: Session = Depends(get_db)) -> FolderSummary:
-    category = normalize_category(payload.category or payload.label)
+    category = normalize_category_value(payload.category or payload.label)
     if not category:
         raise HTTPException(status_code=400, detail="Category folder name is required.")
-    parent = normalize_category(payload.parent)
+    parent = normalize_category_value(payload.parent)
     value = f"{parent}>{category}" if parent else category
     existing = db.scalar(select(CategoryFolder).where(CategoryFolder.value == value))
     if existing:
@@ -225,6 +232,20 @@ def create_category_folder(payload: CategoryFolderCreate, db: Session = Depends(
     db.commit()
     db.refresh(folder)
     return FolderSummary(label=folder.label, value=folder.value, count=0, parent=folder.parent, depth=1 if folder.parent else 0, category=folder.category, custom=True)
+
+
+@router.delete("/categories/{folder_value:path}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category_folder(folder_value: str, db: Session = Depends(get_db)) -> Response:
+    normalized_value = _normalize_folder_value(folder_value)
+    folder = db.scalar(select(CategoryFolder).where(CategoryFolder.value == normalized_value))
+    if not folder:
+        raise HTTPException(status_code=404, detail="Category folder not found.")
+    in_use = _category_document_count(db, normalized_value)
+    if in_use:
+        raise HTTPException(status_code=409, detail="Category folder is still in use and cannot be deleted.")
+    db.delete(folder)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/file-types", response_model=list[FolderSummary])
@@ -330,7 +351,7 @@ def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = De
         raise HTTPException(status_code=404, detail="Document not found")
     values = sanitize_for_postgres(payload.model_dump(exclude_unset=True))
     if "category" in values:
-        values["category"] = normalize_category(values.get("category"))
+        values["category"] = normalize_category_value(values.get("category"))
     if "tags" in values:
         values["tags"] = clean_tags_for_context(
             values.get("tags") or [],
@@ -436,6 +457,39 @@ def export_document_json(document_id: UUID, db: Session = Depends(get_db)) -> Re
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename=document-{document.id}.json"},
     )
+
+
+def _notification(document: Document, kind: str, title: str, message: str) -> DocumentNotification:
+    category = normalize_category_value(document.category)
+    return DocumentNotification(
+        id=f"{kind}:{document.id}:{document.updated_at.isoformat() if document.updated_at else ''}",
+        document_id=document.id,
+        kind=kind,
+        title=title,
+        message=message,
+        document_title=document.title or document.original_filename,
+        category=category,
+        category_label=display_label(category),
+        processing_status=document.processing_status,
+        created_at=document.updated_at or document.created_at,
+        action_url=f"/documents/{document.id}",
+        action_required=kind in {"review", "failed"},
+    )
+
+
+def _normalize_folder_value(value: str) -> str:
+    parts = [normalize_category_value(part) for part in value.split(">")]
+    cleaned = [part for part in parts if part]
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Category folder value is required.")
+    return ">".join(cleaned)
+
+
+def _category_document_count(db: Session, category_or_path: str) -> int:
+    leaf = normalize_category_value(category_or_path)
+    if not leaf:
+        return 0
+    return db.scalar(select(func.count()).select_from(Document).where(Document.category == leaf)) or 0
 
 
 def _folder_summary_rows(db: Session, by: str) -> list[FolderSummary]:

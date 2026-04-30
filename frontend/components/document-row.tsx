@@ -28,7 +28,7 @@ export function DocumentRow({ document, selected = false, onSelect, returnTo }: 
       </Link>
       <div className="flex min-w-0 flex-wrap gap-2 lg:justify-self-start">
         <Badge className="bg-accent text-accent-foreground">{primaryCategoryLabel(document)}</Badge>
-        <Badge variant="outline">{titleCaseLabel(document.source_file_type || document.document_type)}</Badge>
+        {document.source_file_type ? <Badge variant="outline">{titleCaseLabel(document.source_file_type)}</Badge> : null}
       </div>
       <div className="min-w-0 text-sm text-muted-foreground">
         <p>{formatDateTime(document.updated_at)}</p>

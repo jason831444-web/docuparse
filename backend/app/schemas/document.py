@@ -117,3 +117,18 @@ class ActivitySummary(BaseModel):
     recent_edits: list[DocumentRead] = Field(default_factory=list)
     recent_needs_review: list[DocumentRead] = Field(default_factory=list)
     favorites: list[DocumentRead] = Field(default_factory=list)
+
+
+class DocumentNotification(BaseModel):
+    id: str
+    document_id: UUID
+    kind: str
+    title: str
+    message: str
+    document_title: str | None = None
+    category: str | None = None
+    category_label: str | None = None
+    processing_status: ProcessingStatus
+    created_at: datetime
+    action_url: str
+    action_required: bool = False

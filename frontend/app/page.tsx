@@ -97,7 +97,7 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <section className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
+      <section className="mt-8">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>Category folders</CardTitle>
@@ -105,18 +105,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             {(stats?.category_overview ?? []).slice(0, 6).map((folder) => (
-              <FolderCard key={folder.value} folder={folder} href={`/categories/${folder.value}`} />
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>File type views</CardTitle>
-            <Button asChild variant="ghost" size="sm"><Link href="/file-types">Browse file types</Link></Button>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            {(stats?.file_type_overview ?? []).slice(0, 6).map((folder) => (
-              <FolderCard key={folder.value} folder={folder} href={`/file-types/${folder.value}`} />
+              <FolderCard key={folder.value} folder={folder} href={`/categories/${encodeURIComponent(folder.value)}`} />
             ))}
           </CardContent>
         </Card>

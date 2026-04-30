@@ -27,6 +27,8 @@ const LABEL_ALIASES: Record<string, string> = {
   speaking_notes: "Speaking Notes",
   resume_profile: "Resume Profile",
   profile_record: "Profile Record",
+  installation_guide: "Installation Guide",
+  implementation_schedule: "Implementation Schedule",
   repair_service_receipt: "Repair Service Receipt",
   utility_bill: "Utility Bill",
   meeting_notice: "Meeting Notice",
@@ -47,10 +49,10 @@ export function titleCaseLabel(value?: string | null): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export function primaryCategoryLabel(document: { category?: string | null; workflow_metadata?: Record<string, unknown> | null; document_type?: string | null }) {
+export function primaryCategoryLabel(document: { category?: string | null; workflow_metadata?: Record<string, unknown> | null }) {
   const interpretation = (document.workflow_metadata?.category_interpretation ?? {}) as Record<string, unknown>;
   const profile = typeof interpretation.profile === "string" ? interpretation.profile : null;
-  return titleCaseLabel(document.category || profile || document.document_type || "document");
+  return titleCaseLabel(document.category || profile || null);
 }
 
 function workflowSummaryFields(document: { workflow_metadata?: Record<string, unknown> | null }) {

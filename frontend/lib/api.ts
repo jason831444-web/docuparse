@@ -1,4 +1,4 @@
-import type { ActivitySummary, DocumentListResponse, DocumentRecord, DocumentStats, DocumentUpdate, FolderSummary } from "@/types/document";
+import type { ActivitySummary, AppNotification, DocumentListResponse, DocumentRecord, DocumentStats, DocumentUpdate, FolderSummary } from "@/types/document";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8001/api";
 
@@ -19,8 +19,16 @@ export const api = {
   activity: () => request<ActivitySummary>("/documents/activity", { cache: "no-store" }),
   list: (params: URLSearchParams) => request<DocumentListResponse>(`/documents?${params.toString()}`, { cache: "no-store" }),
   categories: () => request<FolderSummary[]>("/documents/categories", { cache: "no-store" }),
+  notifications: () => request<AppNotification[]>("/documents/notifications", { cache: "no-store" }),
   createCategory: (payload: { label: string; parent?: string | null; category?: string | null }) =>
     request<FolderSummary>("/documents/categories", { method: "POST", body: JSON.stringify(payload) }),
+  deleteCategory: async (value: string) => {
+    const response = await fetch(`${API_BASE}/documents/categories/${encodeURIComponent(value)}`, { method: "DELETE" });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Could not delete category" }));
+      throw new Error(error.detail ?? "Could not delete category");
+    }
+  },
   fileTypes: () => request<FolderSummary[]>("/documents/file-types", { cache: "no-store" }),
   review: () => request<DocumentListResponse>("/documents/review", { cache: "no-store" }),
   favorites: () => request<DocumentListResponse>("/documents/favorites", { cache: "no-store" }),

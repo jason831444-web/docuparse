@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import type { DocumentListResponse, ProcessingStatus } from "@/types/document";
+import type { DocumentListResponse, FolderSummary, ProcessingStatus } from "@/types/document";
 
 const statuses: Array<"" | ProcessingStatus> = ["", "processing", "ready", "needs_review", "confirmed", "failed"];
 
@@ -37,6 +37,7 @@ function DocumentsContent() {
   const [data, setData] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("list");
+  const [categories, setCategories] = useState<FolderSummary[]>([]);
   const [filters, setFilters] = useState({
     search: searchParams.get("search") ?? "",
     category: "",
@@ -50,6 +51,10 @@ function DocumentsContent() {
     const search = searchParams.get("search") ?? "";
     setFilters((current) => current.search === search ? current : { ...current, search });
   }, [searchParams]);
+
+  useEffect(() => {
+    api.categories().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   const params = useMemo(() => {
     const next = new URLSearchParams();
@@ -95,7 +100,14 @@ function DocumentsContent() {
             <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
             <Input className="pl-9" placeholder="Search title, merchant, summary, OCR text" value={filters.search} onChange={(event) => setFilter("search", event.target.value)} />
           </label>
-          <Input placeholder="Category" value={filters.category} onChange={(event) => setFilter("category", event.target.value)} />
+          <select className="h-10 rounded-md border bg-white px-3 text-sm" value={filters.category} onChange={(event) => setFilter("category", event.target.value)}>
+            <option value="">All categories</option>
+            {categories.map((folder) => (
+              <option key={folder.value} value={folder.category || folder.value}>
+                {folder.label}
+              </option>
+            ))}
+          </select>
           <Input placeholder="File type" value={filters.source_file_type} onChange={(event) => setFilter("source_file_type", event.target.value)} />
           <select className="h-10 rounded-md border bg-white px-3 text-sm" value={filters.processing_status} onChange={(event) => setFilter("processing_status", event.target.value)}>
             {statuses.map((status) => <option key={status || "all"} value={status}>{status ? status.replace("_", " ") : "All statuses"}</option>)}

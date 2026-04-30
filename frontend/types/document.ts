@@ -14,6 +14,21 @@ export interface FolderSummary {
   custom: boolean;
 }
 
+export interface AppNotification {
+  id: string;
+  document_id: string;
+  kind: "processing" | "processed" | "review" | "failed" | string;
+  title: string;
+  message: string;
+  document_title: string | null;
+  category: string | null;
+  category_label: string | null;
+  processing_status: ProcessingStatus;
+  created_at: string;
+  action_url: string;
+  action_required: boolean;
+}
+
 export interface DocumentRecord {
   id: string;
   original_filename: string;
@@ -87,7 +102,6 @@ export interface DocumentStats {
 
 export type DocumentUpdate = Pick<
   DocumentRecord,
-  | "document_type"
   | "title"
   | "raw_text"
   | "extracted_date"

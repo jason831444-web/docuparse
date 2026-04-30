@@ -132,6 +132,8 @@ class DocumentInterpretationService:
                     "syllabus",
                     "course_guide",
                     "profile_record",
+                    "installation_guide",
+                    "implementation_schedule",
                     "repair_service_receipt",
                     "utility_bill",
                     "meeting_notice",
@@ -144,6 +146,11 @@ class DocumentInterpretationService:
             should_adopt_category = False
             result.diagnostics.append(
                 f"Kept specific heuristic profile {base.profile}; AI refinement proposed broader {refined.profile}."
+            )
+        if should_adopt_category and self._profile_record_token_regression(base, refined):
+            should_adopt_category = False
+            result.diagnostics.append(
+                f"Kept structural heuristic profile {base.profile}; AI refinement proposed profile_record from weaker token evidence."
             )
         if should_adopt_category:
             result.category = refined.category or result.category
@@ -209,8 +216,14 @@ class DocumentInterpretationService:
         score = 10
         if re.search(r"\b[A-Z]{2,5}[- ]?\d{3,4}[A-Z]?\b", cleaned):
             score += 25
-        if any(keyword in lowered for keyword in ["course", "guide", "presentation", "resume", "profile", "receipt", "invoice"]):
+        if any(keyword in lowered for keyword in ["installation guide", "setup guide", "technical guide", "implementation schedule", "project tracker", "development roadmap"]):
+            score += 24
+        if any(keyword in lowered for keyword in ["course", "guide", "manual", "schedule", "tracker", "roadmap", "presentation", "resume", "receipt", "invoice"]):
             score += 12
+        if "profile" in lowered:
+            score += 4
+        if self._looks_like_person_name_title(cleaned):
+            score -= 26
         if ":" in cleaned:
             score -= 8
         if re.match(r"^(course description|overview|summary|introduction|objectives?)\s*:", lowered):
@@ -234,6 +247,22 @@ class DocumentInterpretationService:
         if base.profile not in {"presentation_guide", "speaking_notes", "meeting_notice"}:
             return False
         return base.confidence >= 0.74
+
+    def _profile_record_token_regression(self, base: CategoryInterpretation, refined: CategoryInterpretation) -> bool:
+        if refined.profile != "profile_record":
+            return False
+        if base.profile not in {"installation_guide", "implementation_schedule", "presentation_guide", "speaking_notes", "syllabus", "course_guide"}:
+            return False
+        return base.confidence >= 0.78
+
+    def _looks_like_person_name_title(self, title: str | None) -> bool:
+        if not title:
+            return False
+        cleaned = re.sub(r"\s+", " ", title).strip()
+        if not re.fullmatch(r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}", cleaned):
+            return False
+        lowered = cleaned.lower()
+        return not any(keyword in lowered for keyword in ["guide", "manual", "schedule", "tracker", "roadmap", "invoice", "statement", "profile", "syllabus"])
 
     def _better_summary(self, new: str, current: str | None) -> bool:
         if not current:
@@ -312,7 +341,12 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
         return json.loads(content)
 
     def _payload(self, document: Document, text: str, heuristic: CategoryInterpretation) -> dict[str, Any]:
-        truncated_text = text[: self.settings.ai_interpretation_max_chars]
+        compacted = self._compact_interpretation_text(
+            document,
+            text,
+            heuristic,
+            max_chars=self._interpretation_text_budget(),
+        )
         return {
             "source_file_type": document.source_file_type,
             "mime_type": document.mime_type,
@@ -326,6 +360,13 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
             "tax": str(document.tax) if document.tax is not None else None,
             "category": document.category,
             "summary": document.summary,
+            "interpretation_input": {
+                "strategy": compacted["strategy"],
+                "compacted": compacted["compacted"],
+                "original_chars": compacted["original_chars"],
+                "selected_chars": compacted["selected_chars"],
+                "selected_line_count": compacted["selected_line_count"],
+            },
             "heuristic_interpretation": {
                 "category": heuristic.category,
                 "profile": heuristic.profile,
@@ -336,8 +377,167 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
                 "confidence": heuristic.confidence,
                 "reasons": heuristic.reasons,
             },
-            "text": truncated_text,
+            "text": compacted["text"],
         }
+
+    def _interpretation_text_budget(self) -> int:
+        return self.settings.ai_interpretation_max_chars
+
+    def _compact_interpretation_text(
+        self,
+        document: Document,
+        text: str,
+        heuristic: CategoryInterpretation,
+        *,
+        max_chars: int,
+    ) -> dict[str, Any]:
+        normalized = re.sub(r"\r\n?", "\n", text or "").strip()
+        original_chars = len(normalized)
+        if original_chars <= max_chars:
+            lines = [line for line in normalized.splitlines() if line.strip()]
+            return {
+                "text": normalized,
+                "strategy": "full_text_within_budget",
+                "compacted": False,
+                "original_chars": original_chars,
+                "selected_chars": original_chars,
+                "selected_line_count": len(lines),
+            }
+
+        lines = [re.sub(r"\s+", " ", line).strip() for line in normalized.splitlines()]
+        lines = [line for line in lines if line]
+        scored: list[tuple[int, int, str]] = []
+        seen: set[str] = set()
+        for index, line in enumerate(lines):
+            cleaned = self._clean_compaction_line(line)
+            if not cleaned:
+                continue
+            key = cleaned.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            score = self._compaction_line_score(cleaned, index, len(lines), document, heuristic)
+            if score > 0:
+                scored.append((score, index, cleaned))
+
+        selected: list[tuple[int, str]] = []
+        for index, line in self._fixed_context_lines(lines):
+            cleaned = self._clean_compaction_line(line)
+            if cleaned:
+                selected.append((index, cleaned))
+        for _, index, line in sorted(scored, key=lambda item: (-item[0], item[1])):
+            selected.append((index, line))
+
+        result_lines: list[str] = []
+        result_keys: set[str] = set()
+        total = 0
+        for index, line in sorted(selected, key=lambda item: item[0]):
+            key = line.casefold()
+            if key in result_keys:
+                continue
+            addition = len(line) + 1
+            if total + addition > max_chars:
+                continue
+            result_lines.append(line)
+            result_keys.add(key)
+            total += addition
+            if total >= max_chars:
+                break
+
+        compacted_text = "\n".join(result_lines).strip()
+        if not compacted_text:
+            compacted_text = normalized[:max_chars].rsplit("\n", 1)[0].strip() or normalized[:max_chars]
+            result_lines = [line for line in compacted_text.splitlines() if line.strip()]
+        return {
+            "text": compacted_text,
+            "strategy": "category_aware_line_selection",
+            "compacted": True,
+            "original_chars": original_chars,
+            "selected_chars": len(compacted_text),
+            "selected_line_count": len(result_lines),
+        }
+
+    def _fixed_context_lines(self, lines: list[str]) -> list[tuple[int, str]]:
+        if not lines:
+            return []
+        anchors: list[int] = []
+        anchors.extend(range(min(24, len(lines))))
+        midpoint = len(lines) // 2
+        anchors.extend(range(max(0, midpoint - 8), min(len(lines), midpoint + 8)))
+        anchors.extend(range(max(0, len(lines) - 18), len(lines)))
+        return [(index, lines[index]) for index in sorted(set(anchors))]
+
+    def _clean_compaction_line(self, line: str) -> str | None:
+        cleaned = re.sub(r"\s+", " ", line).strip(" \t-–—|")
+        if not cleaned or len(cleaned) < 3:
+            return None
+        if re.fullmatch(r"[\W_]+", cleaned):
+            return None
+        return cleaned[:260]
+
+    def _compaction_line_score(
+        self,
+        line: str,
+        index: int,
+        total_lines: int,
+        document: Document,
+        heuristic: CategoryInterpretation,
+    ) -> int:
+        lowered = line.lower()
+        score = 0
+        if index < 40:
+            score += 18
+        if index >= max(0, total_lines - 25):
+            score += 6
+        if len(line) <= 90 and re.match(r"^[A-Z0-9][A-Za-z0-9&,:;()/'’ -]{2,}$", line):
+            score += 18
+        if re.match(r"^(chapter|section|lecture|slide|module|unit|problem|homework|assignment|quiz|exam|overview|summary|objectives?|agenda|course|syllabus|sheet|task|feature|status)\b", lowered):
+            score += 28
+        if ":" in line and len(line) <= 180:
+            score += 20
+        for term in self._category_terms(document, heuristic):
+            if term in lowered:
+                score += 16
+        if re.search(r"\b[A-Z]{2,6}[- ]?\d{2,4}[A-Z]?\b", line):
+            score += 18
+        if re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\b20\d{2}\b", line):
+            score += 10
+        if re.search(r"\b(definition|theorem|algorithm|example|steps?|deliverable|due|deadline|required|materials?|instructor|office hours|installation|setup|configuration|dependencies|testing|coverage|pipeline|claimed)\b", lowered):
+            score += 14
+        if len(line) > 220:
+            score -= 10
+        if re.fullmatch(r"(page|slide)\s+\d+", lowered):
+            score -= 18
+        return score
+
+    def _category_terms(self, document: Document, heuristic: CategoryInterpretation) -> set[str]:
+        profile = (heuristic.profile or "").lower()
+        category = (heuristic.category or document.category or "").lower()
+        base = {
+            "title",
+            "overview",
+            "summary",
+            "objective",
+            "deadline",
+            "due",
+            "required",
+        }
+        if profile in {"syllabus", "course_guide"} or "course" in category:
+            base.update({"course", "syllabus", "instructor", "semester", "grading", "materials", "policy", "exam", "homework"})
+        if profile == "installation_guide" or any(term in category for term in ["installation", "setup", "technical"]):
+            base.update({"installation", "setup", "configuration", "environment", "dependencies", "prerequisites", "commands", "docker", "api", "database"})
+        if profile == "implementation_schedule" or any(term in category for term in ["implementation", "tracker", "roadmap", "planning"]):
+            base.update({"implementation", "schedule", "task", "feature", "status", "testing", "coverage", "pipeline", "claimed", "owner", "milestone"})
+        document_type = getattr(document.document_type, "value", str(document.document_type or ""))
+        if profile in {"presentation_guide", "speaking_notes"} or document_type == "presentation":
+            base.update({"presentation", "slide", "speaker", "speaking notes", "talk track", "script", "rehearse", "audience"})
+        if any(term in category for term in ["education", "lecture"]) or document.source_file_type == "pdf":
+            base.update({"lecture", "notes", "problem set", "homework", "assignment", "algorithm", "example", "definition", "theorem"})
+        if profile in {"invoice", "utility_bill"}:
+            base.update({"invoice", "bill", "amount due", "due date", "account", "payment"})
+        if profile in {"receipt", "repair_service_receipt"}:
+            base.update({"receipt", "total", "subtotal", "tax", "merchant", "parts", "labor"})
+        return base
 
     def _system_prompt(self) -> str:
         return (
@@ -348,8 +548,10 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
             "Be category-aware and concise. "
             "Use workflow_hints.important_points to list the most important grounded details or takeaways when possible. "
             "Profiles may include: receipt, repair_service_receipt, utility_bill, invoice, "
-            "syllabus, course_guide, meeting_notice, presentation_guide, speaking_notes, "
+            "syllabus, course_guide, installation_guide, implementation_schedule, meeting_notice, presentation_guide, speaking_notes, "
             "resume_profile, profile_record, instructional_memo, generic_document. "
+            "Do not choose profile_record from a single 'profile' token, API endpoint, or person-name line; require multiple labeled identity fields. "
+            "For installation/setup manuals, prefer installation_guide. For task/status/testing spreadsheets, prefer implementation_schedule. "
             "Use hard extracted facts conservatively. Prefer title refinement, category/profile refinement, "
             "summary refinement, key field surfacing, and workflow hints."
         )
@@ -357,7 +559,7 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
     def _normalize(self, raw: dict[str, Any], heuristic: CategoryInterpretation) -> CategoryInterpretation:
         return CategoryInterpretation(
             category=self._clean_text(raw.get("category")) or heuristic.category,
-            profile=self._clean_text(raw.get("profile")) or heuristic.profile,
+            profile=self._normalize_profile(raw.get("profile")) or heuristic.profile,
             subtype=self._clean_text(raw.get("subtype")) or heuristic.subtype,
             title_hint=self._clean_text(raw.get("title_hint")),
             summary_hint=self._clean_text(raw.get("summary_hint")),
@@ -378,6 +580,22 @@ class OpenAITextInterpretationProvider(BaseInterpretationProvider):
             return None
         text = re.sub(r"\s+", " ", str(value)).strip()
         return text[:400] if text else None
+
+    def _normalize_profile(self, value: Any) -> str | None:
+        cleaned = self._clean_text(value)
+        if not cleaned:
+            return None
+        normalized = re.sub(r"[\s/>\-]+", "_", cleaned.strip().lower())
+        aliases = {
+            "setup_guide": "installation_guide",
+            "technical_guide": "installation_guide",
+            "technical_documentation": "installation_guide",
+            "project_setup": "installation_guide",
+            "project_tracker": "implementation_schedule",
+            "engineering_planning": "implementation_schedule",
+            "development_roadmap": "implementation_schedule",
+        }
+        return aliases.get(normalized, normalized)
 
     def _clean_text_list(self, value: Any) -> list[str]:
         if not isinstance(value, list):
@@ -440,13 +658,29 @@ class LlamaCppGemmaInterpretationProvider(OpenAITextInterpretationProvider):
         self._loaded_model_path: str | None = None
 
     def interpret(self, document: Document, text: str, heuristic: CategoryInterpretation) -> CategoryInterpretation:
-        raw = self._call_llama_cpp(self._payload(document, text, heuristic))
+        payload = self._payload(document, text, heuristic)
+        raw = self._call_llama_cpp(payload)
         result = self._normalize(raw, heuristic)
         result.provider = self.provider_name
         result.provider_chain = ["heuristic_interpretation", self.provider_name, "ai_summary_refinement"]
         result.refinement_status = self.provider_name
         result.diagnostics.append(f"{self.provider_name} completed with llama.cpp GGUF backend.")
+        input_meta = payload.get("interpretation_input") or {}
+        if input_meta.get("compacted"):
+            result.diagnostics.append(
+                "Long document input compacted for GGUF context window: "
+                f"{input_meta.get('original_chars')} -> {input_meta.get('selected_chars')} chars "
+                f"using {input_meta.get('strategy')}."
+            )
         return result
+
+    def _interpretation_text_budget(self) -> int:
+        token_budget = max(
+            800,
+            self.settings.llama_cpp_context_window - self.settings.llama_cpp_max_tokens - 900,
+        )
+        char_budget = int(token_budget * 2.6)
+        return max(2500, min(self.settings.ai_interpretation_max_chars, char_budget, 6500))
 
     def _call_llama_cpp(self, payload: dict[str, Any]) -> dict[str, Any]:
         llm = self._load_model()
@@ -497,7 +731,9 @@ class LlamaCppGemmaInterpretationProvider(OpenAITextInterpretationProvider):
             "Prefer concise, category-aware summaries and field emphasis. "
             "Use workflow_hints.important_points for the most important grounded facts or takeaways. "
             "Good profile options: receipt, repair_service_receipt, utility_bill, invoice, syllabus, course_guide, "
-            "meeting_notice, presentation_guide, speaking_notes, resume_profile, profile_record, instructional_memo, generic_document."
+            "installation_guide, implementation_schedule, meeting_notice, presentation_guide, speaking_notes, "
+            "resume_profile, profile_record, instructional_memo, generic_document. "
+            "Do not use profile_record for an API endpoint, a single profile token, or a person-name line unless the document has multiple labeled identity fields."
         )
         return (
             "<start_of_turn>user\n"

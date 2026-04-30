@@ -55,6 +55,8 @@ class HTMLTableTextExtractor(HTMLParser):
 
 
 CATEGORY_MAP = {
+    "installation_guide": ["installation guide", "setup guide", "technical guide", "install", "setup", "configuration", "dependencies", "prerequisites"],
+    "implementation_schedule": ["implementation", "schedule", "task", "feature", "status", "testing", "coverage", "pipeline", "claimed", "roadmap"],
     "food_drink": ["coffee", "cafe", "restaurant", "bakery", "pizza", "burger", "tea", "deli"],
     "groceries": ["grocery", "market", "supermarket", "foods", "produce"],
     "transport": ["gas", "fuel", "uber", "lyft", "taxi", "parking", "metro", "transit"],
@@ -212,6 +214,10 @@ class LocalDocumentAIService(DocumentAIService):
         invoice_score = self._score(haystack, ["invoice", "invoice number", "invoice #", "vendor", "bill to", "amount due", "total due"])
         if invoice_score >= 4:
             return DocumentType.document, Decimal("0.84")
+        guide_score = self._score(haystack, ["installation guide", "setup guide", "technical guide", "project setup", "install", "configuration", "dependencies", "prerequisites"])
+        tracker_score = self._score(haystack, ["implementation schedule", "project tracker", "roadmap", "task", "feature", "status", "testing", "coverage", "pipeline", "claimed"])
+        if guide_score >= 4 or tracker_score >= 6:
+            return DocumentType.document, Decimal("0.84")
         scores = {
             DocumentType.receipt: self._score(haystack, ["receipt", "subtotal", "tax", "total", "change", "visa", "mastercard", "cashier"]),
             DocumentType.notice: self._score(haystack, ["notice", "announcement", "effective date", "deadline", "meeting", "reminder"]),
@@ -301,6 +307,8 @@ class LocalDocumentAIService(DocumentAIService):
             "profile_record",
             "course_guide",
             "presentation_guide",
+            "installation_guide",
+            "implementation_schedule",
             "repair_service",
             "utilities",
         }

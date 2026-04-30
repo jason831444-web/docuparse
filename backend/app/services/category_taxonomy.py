@@ -22,6 +22,13 @@ ALIASES = {
     "utility": "utility_bill",
     "profile": "profile_record",
     "education_record": "profile_record",
+    "setup_guide": "installation_guide",
+    "technical_guide": "installation_guide",
+    "technical_documentation": "installation_guide",
+    "project_setup": "installation_guide",
+    "project_tracker": "implementation_schedule",
+    "engineering_planning": "implementation_schedule",
+    "development_roadmap": "implementation_schedule",
 }
 
 LABEL_ALIASES = {
@@ -35,6 +42,8 @@ LABEL_ALIASES = {
     "speaking_notes": "Speaking Notes",
     "resume_profile": "Resume Profile",
     "profile_record": "Profile Record",
+    "installation_guide": "Installation Guide",
+    "implementation_schedule": "Implementation Schedule",
     "meeting_notice": "Meeting Notice",
     "instructional_memo": "Instructional Memo",
 }
@@ -48,6 +57,8 @@ TAG_CONFLICTS = {
     "speaking_notes": {"receipt", "retail", "food_drink", "repair_service", "utility_bill", "notice", "memo", "generic_document", "other"},
     "resume_profile": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "profile_record", "generic_document", "other", "time_sensitive"},
     "profile_record": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "generic_document", "other", "time_sensitive"},
+    "installation_guide": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "profile_record", "generic_document", "other", "time_sensitive"},
+    "implementation_schedule": {"receipt", "retail", "food_drink", "utility_bill", "memo", "notice", "profile_record", "generic_document", "other"},
     "repair_service": {"utility_bill", "notice", "memo", "time_sensitive", "generic_document", "other"},
     "repair_service_receipt": {"utility_bill", "notice", "memo", "time_sensitive", "generic_document", "other"},
     "utility_bill": {"invoice", "repair_service", "retail", "receipt", "notice", "memo", "time_sensitive", "generic_document", "other"},
@@ -71,12 +82,19 @@ class CategoryPath:
 def normalize_category(value: str | None) -> str | None:
     if not value:
         return None
-    cleaned = re.sub(r"[\s/>\-]+", "_", value.strip().lower())
+    cleaned = re.sub(r"[\s/\-]+", "_", value.strip().lower())
     cleaned = re.sub(r"[^a-z0-9_]+", "", cleaned)
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     if not cleaned:
         return None
     return ALIASES.get(cleaned, cleaned)
+
+
+def normalize_category_value(value: str | None) -> str | None:
+    if not value:
+        return None
+    leaf = str(value).split(">")[-1]
+    return normalize_category(leaf)
 
 
 def display_label(value: str | None) -> str:
@@ -125,20 +143,14 @@ def clean_tags_for_context(
 
 
 def category_path_for(document: Document) -> CategoryPath:
-    leaf = normalize_category(document.category)
-    doc_type = getattr(document.document_type, "value", str(document.document_type or "document"))
-    root = normalize_category(doc_type) or "document"
-    if not leaf or leaf == root:
-        return CategoryPath(value=root, label=display_label(root), parent=None, depth=0, category=leaf)
-    if root == "document" and leaf not in {"retail", "repair_service"}:
-        return CategoryPath(value=leaf, label=display_label(leaf), parent=None, depth=0, category=leaf)
-    path = f"{root}>{leaf}"
-    return CategoryPath(value=path, label=f"{display_label(root)} > {display_label(leaf)}", parent=root, depth=1, category=leaf)
+    leaf = normalize_category_value(document.category)
+    value = leaf or "uncategorized"
+    return CategoryPath(value=value, label=display_label(value), parent=None, depth=0, category=leaf)
 
 
 def path_matches_document(document: Document, requested: str) -> bool:
-    normalized = normalize_category(requested)
+    normalized = normalize_category_value(requested)
     path = category_path_for(document)
     if requested == path.value:
         return True
-    return bool(normalized and (normalized == normalize_category(document.category) or normalized == path.value))
+    return bool(normalized and (normalized == normalize_category_value(document.category) or normalized == normalize_category_value(path.value)))

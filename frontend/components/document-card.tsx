@@ -37,7 +37,6 @@ export function DocumentCard({ document, selected = false, onSelect, returnTo }:
         </div>
           <div className="flex flex-wrap gap-2">
             <Badge className="bg-accent text-accent-foreground">{primaryCategoryLabel(document)}</Badge>
-            <Badge variant="outline">{titleCaseLabel(document.document_type)}</Badge>
             {document.source_file_type ? <Badge variant="outline">{document.source_file_type.toUpperCase()}</Badge> : null}
           </div>
           <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">

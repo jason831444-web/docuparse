@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -25,7 +26,6 @@ const navItems = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/documents", label: "All Documents", icon: Files },
   { href: "/categories", label: "Categories", icon: FolderKanban },
-  { href: "/file-types", label: "File Types", icon: FileSearch },
   { href: "/review", label: "Needs Review", icon: BellRing },
   { href: "/favorites", label: "Favorites", icon: FileHeart },
   { href: "/settings", label: "Settings", icon: Settings }
@@ -41,6 +41,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    if (isAuthPage) return;
+    api
+      .notifications()
+      .then((items) => setNotificationCount(items.filter((item) => item.action_required).length || items.length))
+      .catch(() => setNotificationCount(0));
+  }, [isAuthPage, pathname]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,6 +124,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
                 <Input className="pl-9" placeholder="Search title, summary, merchant, OCR text" value={query} onChange={(event) => setQuery(event.target.value)} />
               </form>
+              <Link
+                href="/notifications"
+                aria-label="Notifications"
+                className={cn(
+                  "relative grid size-10 place-items-center rounded-md border bg-white text-muted-foreground transition hover:border-primary/40 hover:text-foreground",
+                  pathname.startsWith("/notifications") && "border-primary/50 text-primary"
+                )}
+              >
+                <BellRing className="size-4" />
+                {notificationCount ? (
+                  <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-semibold leading-5 text-primary-foreground">
+                    {notificationCount > 9 ? "9+" : notificationCount}
+                  </span>
+                ) : null}
+              </Link>
               <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground">Login</Link>
               <Link href="/signup" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Start free</Link>
             </div>
