@@ -1,6 +1,7 @@
 import shutil
 import uuid
 import mimetypes
+import re
 from typing import Protocol
 from pathlib import Path
 
@@ -23,11 +24,15 @@ class StorageService(Protocol):
     def public_url(self, stored_path: str) -> str:
         ...
 
+    def safe_original_filename(self, filename: str | None) -> str:
+        ...
+
 
 class LocalStorageService:
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.root = self.settings.upload_dir
+        self.root = self.settings.upload_dir.resolve()
+        self.root.mkdir(parents=True, exist_ok=True)
         self.detector = FileTypeDetector()
 
     def validate_upload(self, file: UploadFile) -> None:
@@ -53,10 +58,27 @@ class LocalStorageService:
     def delete(self, stored_path: str | None) -> None:
         if not stored_path:
             return
-        Path(stored_path).unlink(missing_ok=True)
+        path = Path(stored_path).resolve()
+        if not self._within_upload_root(path):
+            return
+        path.unlink(missing_ok=True)
 
     def public_url(self, stored_path: str) -> str:
         return f"{self.settings.backend_base_url}/uploads/{Path(stored_path).name}"
+
+    def safe_original_filename(self, filename: str | None) -> str:
+        name = Path(filename or "upload").name
+        name = name.replace("\x00", "")
+        name = re.sub(r"[^A-Za-z0-9._ -]+", "_", name)
+        name = re.sub(r"\s+", " ", name).strip(" ._-")
+        return name[:180] or "upload"
+
+    def _within_upload_root(self, path: Path) -> bool:
+        try:
+            path.relative_to(self.root)
+            return True
+        except ValueError:
+            return False
 
 
 class ObjectStorageService:

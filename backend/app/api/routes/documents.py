@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from io import BytesIO
 from pathlib import Path
@@ -68,9 +69,9 @@ def upload_document(file: Annotated[UploadFile, File(...)], db: Session = Depend
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     document = Document(
-        original_filename=file.filename or "upload",
+        original_filename=_safe_original_filename(file.filename),
         stored_file_path=str(stored_path),
-        mime_type=file.content_type or "application/octet-stream",
+        mime_type=_safe_mime_type(file.content_type),
         processing_status=ProcessingStatus.uploaded,
     )
     db.add(document)
@@ -83,10 +84,10 @@ def upload_document(file: Annotated[UploadFile, File(...)], db: Session = Depend
 @router.get("", response_model=DocumentListResponse)
 def list_documents(
     db: Session = Depends(get_db),
-    search: str | None = None,
+    search: str | None = Query(default=None, max_length=200),
     document_type: DocumentType | None = None,
-    category: str | None = None,
-    source_file_type: str | None = None,
+    category: str | None = Query(default=None, max_length=120),
+    source_file_type: str | None = Query(default=None, max_length=40, pattern=r"^[A-Za-z0-9._-]+$"),
     processing_status: ProcessingStatus | None = None,
     is_favorite: bool | None = None,
     date_from: date | None = None,
@@ -210,6 +211,8 @@ def create_category_folder(payload: CategoryFolderCreate, db: Session = Depends(
     if not category:
         raise HTTPException(status_code=400, detail="Category folder name is required.")
     parent = normalize_category_value(payload.parent)
+    if parent == category:
+        raise HTTPException(status_code=400, detail="Category folder cannot be nested under itself.")
     value = f"{parent}>{category}" if parent else category
     existing = db.scalar(select(CategoryFolder).where(CategoryFolder.value == value))
     if existing:
@@ -307,9 +310,9 @@ def bulk_download_originals(payload: BulkDocumentRequest, db: Session = Depends(
         used: set[str] = set()
         for document in documents:
             path = Path(document.stored_file_path)
-            if not path.exists():
+            if not path.is_file():
                 continue
-            name = document.original_filename or path.name
+            name = _zip_member_name(document.original_filename or path.name)
             if name in used:
                 stem = Path(name).stem
                 suffix = Path(name).suffix
@@ -475,6 +478,30 @@ def _notification(document: Document, kind: str, title: str, message: str) -> Do
         action_url=f"/documents/{document.id}",
         action_required=kind in {"review", "failed"},
     )
+
+
+def _safe_original_filename(filename: str | None) -> str:
+    storage = get_storage_service()
+    sanitizer = getattr(storage, "safe_original_filename", None)
+    if callable(sanitizer):
+        return sanitizer(filename)
+    return Path(filename or "upload").name[:180] or "upload"
+
+
+def _safe_mime_type(value: str | None) -> str:
+    if not value:
+        return "application/octet-stream"
+    cleaned = value.split(";", 1)[0].strip().lower()
+    if not re.fullmatch(r"[a-z0-9.+-]+/[a-z0-9.+-]+", cleaned):
+        return "application/octet-stream"
+    return cleaned[:100]
+
+
+def _zip_member_name(filename: str) -> str:
+    cleaned = _safe_original_filename(filename)
+    if cleaned in {"", ".", ".."}:
+        return "document"
+    return cleaned
 
 
 def _normalize_folder_value(value: str) -> str:
